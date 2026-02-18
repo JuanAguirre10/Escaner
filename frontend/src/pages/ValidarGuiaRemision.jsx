@@ -355,7 +355,7 @@ export default function ValidarGuiaRemision() {
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase">Cantidad</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase">Unidad</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase">Peso Unit. (KG)</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase">Peso Bruto (KG)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -422,14 +422,14 @@ export default function ValidarGuiaRemision() {
                       <input
                         type="number"
                         step="0.01"
-                        value={parseFloat(item.peso_unitario || 0).toFixed(2)}
+                        value={parseFloat(item.peso_bruto || 0).toFixed(2)}
                         onChange={(e) => {
-                          const newItems = [...items];
-                          newItems[index].peso_unitario = parseFloat(e.target.value) || 0;
-                          setItems(newItems);
+                            const newItems = [...items];
+                            newItems[index].peso_bruto = parseFloat(e.target.value) || 0;
+                            setItems(newItems);
                         }}
                         className="w-24 px-2 py-1 text-sm text-center border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
+                        />
                     </td>
                   </tr>
                 ))}
@@ -444,7 +444,7 @@ export default function ValidarGuiaRemision() {
                 <p className="text-sm text-gray-700 text-right">
                   <span className="font-medium">Peso Total:</span>{' '}
                   {items.reduce((sum, item) => 
-                    sum + (parseFloat(item.cantidad || 0) * parseFloat(item.peso_unitario || 0)), 0
+                    sum + parseFloat(item.peso_bruto || 0), 0
                   ).toFixed(2)} KG
                 </p>
               </div>

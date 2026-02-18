@@ -227,7 +227,7 @@ async def procesar_documento(
                     descripcion=item_data.get("descripcion", ""),
                     cantidad=item_data.get("cantidad", 1.0),
                     unidad_medida=item_data.get("unidad_medida", "UND"),
-                    peso_unitario=item_data.get("peso_unitario", 0.0),
+                    peso_bruto=item_data.get("peso_bruto", 0.0),
                     precio_unitario=0.0,
                     valor_total=0.0,
                     igv_item=0.0,

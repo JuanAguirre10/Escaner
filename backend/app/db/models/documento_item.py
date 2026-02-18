@@ -44,7 +44,7 @@ class DocumentoItem(Base):
     # ==================================
     cantidad = Column(DECIMAL(15, 4), nullable=False, default=1.0000)
     unidad_medida = Column(String(10), default='UND')
-    peso_unitario = Column(DECIMAL(15, 4), default=0.0000)
+    peso_bruto = Column(DECIMAL(15, 4), default=0.0000)
     
     # ==================================
     # PRECIOS
