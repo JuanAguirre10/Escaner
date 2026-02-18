@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Save, X, CheckCircle, AlertTriangle, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, Button, Input, Loading, Badge, Modal } from '../components/common';
-import { facturaService } from '../services';
+import { documentoService as facturaService } from '../services';
 import { formatDate, formatMoney, getConfianzaColor, getEstadoColor, formatEstado } from '../utils/formatters';
 import { MENSAJES } from '../utils/constants';
 
@@ -25,14 +25,22 @@ export default function ValidarFactura() {
   const cargarFactura = async () => {
     try {
         setLoading(true);
-        console.log('Cargando factura ID:', id);
+        console.log('Cargando documento ID:', id);
         
         const data = await facturaService.obtener(id);
-        console.log('Factura cargada:', data);
+        console.log('Documento cargado:', data);
         setFactura(data);
+
+        // 🎯 DETECTAR TIPO Y REDIRIGIR
+        if (data.tipo_documento_id === 2) {
+          console.log('🔄 Redirigiendo a vista de guía de remisión...');
+          navigate(`/validar-guia/${id}`, { replace: true });
+          return; // Detener ejecución
+        }
         
         setFormData({
-          numero_factura: data.numero_factura || '',
+          // Usar numero_documento (nuevo) o numero_factura (viejo)
+          numero_factura: data.numero_documento || data.numero_factura || '',
           guia_remision: data.guia_remision || '',
           serie: data.serie || '',
           correlativo: data.correlativo || '',
@@ -63,8 +71,8 @@ export default function ValidarFactura() {
         }
         
     } catch (error) {
-        console.error('Error cargando factura:', error);
-        toast.error('Error al cargar la factura');
+        console.error('Error cargando documento:', error);
+        toast.error('Error al cargar el documento');
         setFactura(null);
     } finally {
         setLoading(false);
@@ -92,7 +100,7 @@ export default function ValidarFactura() {
   const handleValidar = async () => {
     try {
       setSaving(true);
-      await facturaService.validar(id, formData.observaciones);
+      await facturaService.validar(id);
       toast.success(MENSAJES.VALIDAR_SUCCESS);
       navigate('/facturas');
     } catch (error) {
@@ -104,9 +112,9 @@ export default function ValidarFactura() {
   };
 
   const handleRechazar = async () => {
-    const motivo = prompt('¿Por qué rechazas esta factura?');
-    if (!motivo || motivo.trim().length < 5) {
-      toast.error('Debes proporcionar un motivo válido (mínimo 5 caracteres)');
+    const motivo = prompt('¿Por qué rechazas este documento?');
+    if (!motivo || motivo.trim().length < 10) {
+      toast.error('Debes proporcionar un motivo válido (mínimo 10 caracteres)');
       return;
     }
 
@@ -131,10 +139,10 @@ export default function ValidarFactura() {
           <div className="text-center py-12">
             <div className="text-red-500 text-6xl mb-4">⚠️</div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Error al cargar factura
+              Error al cargar documento
             </h2>
             <p className="text-gray-600 mb-6">
-              No se pudo cargar la información de la factura
+              No se pudo cargar la información del documento
             </p>
             <Button onClick={() => navigate('/facturas')}>
               Volver a la lista
@@ -147,13 +155,16 @@ export default function ValidarFactura() {
 
   if (!factura) return null;
 
+  // Usar numero_documento (nuevo) o numero_factura (viejo)
+  const numeroDocumento = factura.numero_documento || factura.numero_factura;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Validar Factura</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Validar Documentos</h1>
           <div className="flex items-center gap-3 mt-2">
-            <p className="text-gray-600">#{factura.numero_factura}</p>
+            <p className="text-gray-600">#{numeroDocumento}</p>
             <Badge variant={getEstadoColor(factura.estado)}>
               {formatEstado(factura.estado)}
             </Badge>
@@ -174,9 +185,9 @@ export default function ValidarFactura() {
           <div className="flex items-center gap-3">
             <AlertTriangle className="text-yellow-600 shrink-0" size={24} />
             <div>
-              <p className="font-medium text-yellow-900">Factura Duplicada</p>
+              <p className="font-medium text-yellow-900">Documento Duplicado</p>
               <p className="text-sm text-yellow-700">
-                Esta factura podría ser un duplicado. Revisa cuidadosamente antes de validar.
+                Este documento podría ser un duplicado. Revisa cuidadosamente antes de validar.
               </p>
             </div>
           </div>
@@ -226,7 +237,7 @@ export default function ValidarFactura() {
             </div>
           </Card>
 
-          <Card title="Datos de la Factura">
+          <Card title="Datos del Documento">
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <Input
@@ -245,7 +256,7 @@ export default function ValidarFactura() {
               </div>
 
               <Input
-                label="Número de Factura"
+                label="Número de Documento"
                 value={formData.numero_factura}
                 onChange={(e) => handleChange('numero_factura', e.target.value)}
                 required
@@ -366,7 +377,7 @@ export default function ValidarFactura() {
               value={formData.observaciones}
               onChange={(e) => handleChange('observaciones', e.target.value)}
               rows={4}
-              placeholder="Agrega observaciones o notas sobre esta factura..."
+              placeholder="Agrega observaciones o notas sobre este documento..."
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </Card>
@@ -567,11 +578,11 @@ export default function ValidarFactura() {
         </div>
       </Card>
 
-      <Modal isOpen={showImage} onClose={() => setShowImage(false)} title="Imagen de la Factura" size="xl">
+      <Modal isOpen={showImage} onClose={() => setShowImage(false)} title="Imagen del Documento" size="xl">
         <div className="max-h-[70vh] overflow-auto">
           <img 
             src={`http://localhost:8000/${factura.archivo_original_url}`}
-            alt="Factura"
+            alt="Documento"
             className="w-full"
           />
         </div>

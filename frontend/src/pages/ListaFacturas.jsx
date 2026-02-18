@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Search, Eye, Edit, Trash2, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, Button, Badge, Loading, Input } from '../components/common';
-import { facturaService } from '../services';
+import { documentoService as facturaService } from '../services';
 import { formatDate, formatMoney, getEstadoColor, formatEstado } from '../utils/formatters';
 
 export default function ListaFacturas() {
@@ -115,7 +115,7 @@ export default function ListaFacturas() {
                   <tr key={factura.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{factura.numero_factura}</p>
+                        <p className="text-sm font-medium text-gray-900">{factura.numero_documento || factura.numero_factura}</p>
                         <p className="text-xs text-gray-500">{factura.ruc_emisor}</p>
                       </div>
                     </td>

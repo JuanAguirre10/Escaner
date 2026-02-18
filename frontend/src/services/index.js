@@ -1,4 +1,9 @@
 export { default as api } from './api';
 export { ocrService } from './ocrService';
-export { facturaService } from './facturaService';
-export { proveedorService } from './proveedorService';
+export { documentoService, facturaService } from './documentoService';
+export { empresaService } from './empresaService';
+export { tipoDocumentoService } from './tipoDocumentoService';
+export { default as guiaRemisionService } from './guiaRemisionService';
+
+// Mantener proveedorService para compatibilidad (es alias de empresaService)
+export { empresaService as proveedorService } from './empresaService';

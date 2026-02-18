@@ -44,8 +44,8 @@ def get_db() -> Generator[Session, None, None]:
     Se usa como dependencia en los endpoints de FastAPI
     
     Uso:
-        @app.get("/facturas")
-        def get_facturas(db: Session = Depends(get_db)):
+        @app.get("/documentos")
+        def get_documentos(db: Session = Depends(get_db)):
             ...
     """
     db = SessionLocal()
@@ -82,7 +82,7 @@ def create_tables():
     SOLO para desarrollo - en producción usar Alembic
     """
     from app.db.base import Base
-    from app.db.models import factura, proveedor, item  # Importar modelos
+    from app.db.models import TipoDocumento, Empresa, Documento, DocumentoItem
     
     logger.info("🔨 Creando tablas en la base de datos...")
     Base.metadata.create_all(bind=engine)

@@ -1,13 +1,17 @@
 """
-Importar todos los modelos aquí para que SQLAlchemy los reconozca
+Importar todos los modelos aquí
 """
 
-from app.db.models.proveedor import Proveedor
-from app.db.models.factura import Factura
-from app.db.models.item import FacturaItem
+from app.db.models.tipo_documento import TipoDocumento
+from app.db.models.guia_remision import GuiaRemision
+from app.db.models.empresa import Empresa
+from app.db.models.documento import Documento
+from app.db.models.documento_item import DocumentoItem
 
 __all__ = [
-    "Proveedor",
-    "Factura",
-    "FacturaItem",
+    "TipoDocumento",
+    "GuiaRemision",
+    "Empresa",
+    "Documento",
+    "DocumentoItem",
 ]

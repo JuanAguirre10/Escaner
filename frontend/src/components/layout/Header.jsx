@@ -20,7 +20,7 @@ export default function Header({ onMenuClick }) {
             </div>
             <div>
               <h1 className="font-bold text-gray-900">SUPERVAN</h1>
-              <p className="text-xs text-gray-500">Sistema de Facturas</p>
+              <p className="text-xs text-gray-500">Sistema de Documentos</p>
             </div>
           </div>
         </div>

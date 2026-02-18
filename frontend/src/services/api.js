@@ -6,7 +6,8 @@ const API_V1_PREFIX = import.meta.env.VITE_API_V1_PREFIX || '/api/v1';
 const api = axios.create({
   baseURL: `${API_BASE_URL}${API_V1_PREFIX}`,
   headers: {
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json; charset=utf-8',
+    'Accept': 'application/json; charset=utf-8',
   },
   timeout: 30000, // 30 segundos
 });

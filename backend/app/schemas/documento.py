@@ -1,5 +1,5 @@
 """
-Schemas Pydantic para Factura
+Schemas Pydantic para Documento (antes Factura)
 """
 
 from pydantic import BaseModel, Field, field_validator
@@ -8,73 +8,54 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from app.schemas.item import FacturaItem, FacturaItemCreate
-from app.schemas.proveedor import ProveedorSimple
-
+from app.schemas.documento_item import DocumentoItem, DocumentoItemCreate
+from app.schemas.empresa import EmpresaSimple
+from app.schemas.tipo_documento import TipoDocumentoSimple
+from app.schemas.guia_remision import GuiaRemisionResponse
 
 # ==================================
 # SCHEMAS BASE
 # ==================================
 
-class FacturaBase(BaseModel):
-    """Campos comunes de Factura"""
+class DocumentoBase(BaseModel):
+    """Campos comunes de Documento"""
     # Identificación
-    numero_factura: str = Field(..., max_length=50, description="Número completo de factura (serie-correlativo)")
+    numero_documento: str = Field(..., max_length=50, description="Número completo del documento")
     serie: str = Field(..., max_length=10)
     correlativo: str = Field(..., max_length=20)
-    tipo_comprobante: str = Field(default="FACTURA", max_length=20)
+    tipo_comprobante: str = Field(default="FACTURA", max_length=50)
+    guia_remision: Optional[str] = Field(None, max_length=50)
     
     # Fechas
     fecha_emision: date
     fecha_vencimiento: Optional[date] = None
-    fecha_recepcion: Optional[date] = None
     
     # Datos del emisor
     ruc_emisor: str = Field(..., min_length=11, max_length=11)
-    razon_social_emisor: str = Field(..., max_length=300)
+    razon_social_emisor: str = Field(..., max_length=500)
     direccion_emisor: Optional[str] = None
     telefono_emisor: Optional[str] = Field(None, max_length=50)
-    email_emisor: Optional[str] = Field(None, max_length=150)
+    email_emisor: Optional[str] = Field(None, max_length=255)
     
     # Datos del cliente (SUPERVAN)
-    ruc_cliente: str = Field(default="20516185211", max_length=11)
-    razon_social_cliente: str = Field(default="SUPERVAN S.A.C.", max_length=300)
+    ruc_cliente: Optional[str] = Field(None, max_length=11)
+    razon_social_cliente: Optional[str] = Field(None, max_length=500)
     direccion_cliente: Optional[str] = None
     
     # Orden de compra
     orden_compra: Optional[str] = Field(None, max_length=50)
-    numero_pedido: Optional[str] = Field(None, max_length=50)
-    
-    # Guía de remisión
-    guia_remision_serie: Optional[str] = Field(None, max_length=10)
-    guia_remision_numero: Optional[str] = Field(None, max_length=20)
-    guia_remision_fecha: Optional[date] = None
     
     # Montos
-    subtotal: Decimal = Field(default=0.0, ge=0, decimal_places=4)
-    descuento_global: Decimal = Field(default=0.0, ge=0, decimal_places=4)
-    operaciones_gravadas: Decimal = Field(default=0.0, ge=0, decimal_places=4)
-    operaciones_inafectas: Decimal = Field(default=0.0, ge=0, decimal_places=4)
-    operaciones_exoneradas: Decimal = Field(default=0.0, ge=0, decimal_places=4)
-    operaciones_gratuitas: Decimal = Field(default=0.0, ge=0, decimal_places=4)
-    igv: Decimal = Field(default=0.0, ge=0, decimal_places=4)
-    otros_cargos: Decimal = Field(default=0.0, ge=0, decimal_places=4)
-    total: Decimal = Field(..., gt=0, decimal_places=4)
+    subtotal: Optional[Decimal] = Field(None, ge=0, decimal_places=2)
+    igv: Optional[Decimal] = Field(None, ge=0, decimal_places=2)
+    total: Optional[Decimal] = Field(None, ge=0, decimal_places=2)
     
     # Moneda
-    moneda: str = Field(default="PEN", max_length=3)
-    tipo_cambio: Optional[Decimal] = Field(None, decimal_places=6)
+    moneda: Optional[str] = Field(None, max_length=3)
     
     # Forma de pago
     forma_pago: Optional[str] = Field(None, max_length=50)
-    condicion_pago: Optional[str] = Field(None, max_length=100)
-    dias_credito: Optional[int] = Field(None, ge=0)
-    numero_cuotas: Optional[int] = Field(None, ge=1)
-    
-    # Datos bancarios
-    banco: Optional[str] = Field(None, max_length=100)
-    cuenta_bancaria: Optional[str] = Field(None, max_length=50)
-    cuenta_interbancaria: Optional[str] = Field(None, max_length=50)
+    condicion_pago: Optional[str] = Field(None, max_length=200)
     
     # Observaciones
     observaciones: Optional[str] = None
@@ -82,8 +63,10 @@ class FacturaBase(BaseModel):
     
     @field_validator('ruc_emisor', 'ruc_cliente')
     @classmethod
-    def validar_ruc(cls, v: str) -> str:
+    def validar_ruc(cls, v: Optional[str]) -> Optional[str]:
         """Validar que el RUC sea solo números de 11 dígitos"""
+        if v is None:
+            return v
         if not v.isdigit():
             raise ValueError('El RUC debe contener solo dígitos')
         if len(v) != 11:
@@ -92,8 +75,10 @@ class FacturaBase(BaseModel):
     
     @field_validator('moneda')
     @classmethod
-    def validar_moneda(cls, v: str) -> str:
-        """Validar que la moneda sea PEN o USD"""
+    def validar_moneda(cls, v: Optional[str]) -> Optional[str]:
+        """Validar que la moneda sea PEN, USD o EUR"""
+        if v is None:
+            return None
         v = v.upper()
         if v not in ['PEN', 'USD', 'EUR']:
             raise ValueError('La moneda debe ser PEN, USD o EUR')
@@ -101,26 +86,27 @@ class FacturaBase(BaseModel):
 
 
 # ==================================
-# SCHEMA PARA CREAR FACTURA
+# SCHEMA PARA CREAR DOCUMENTO
 # ==================================
 
-class FacturaCreate(FacturaBase):
-    """Schema para crear una nueva factura"""
-    proveedor_id: Optional[int] = None
-    archivo_original_nombre: str
-    archivo_original_url: str
+class DocumentoCreate(DocumentoBase):
+    """Schema para crear un nuevo documento"""
+    empresa_id: Optional[int] = None
+    tipo_documento_id: Optional[int] = None
+    archivo_original_nombre: Optional[str] = None
+    archivo_original_url: Optional[str] = None
     archivo_original_tipo: Optional[str] = None
     archivo_original_size: Optional[int] = None
-    items: List[FacturaItemCreate] = Field(default_factory=list)
+    items: List[DocumentoItemCreate] = Field(default_factory=list)
 
 
 # ==================================
-# SCHEMA PARA ACTUALIZAR FACTURA
+# SCHEMA PARA ACTUALIZAR DOCUMENTO
 # ==================================
 
-class FacturaUpdate(BaseModel):
-    """Schema para actualizar factura (todos opcionales)"""
-    numero_factura: Optional[str] = None
+class DocumentoUpdate(BaseModel):
+    """Schema para actualizar documento (todos opcionales)"""
+    numero_documento: Optional[str] = None
     serie: Optional[str] = None
     correlativo: Optional[str] = None
     fecha_emision: Optional[date] = None
@@ -129,9 +115,7 @@ class FacturaUpdate(BaseModel):
     razon_social_emisor: Optional[str] = None
     direccion_emisor: Optional[str] = None
     orden_compra: Optional[str] = None
-    guia_remision_serie: Optional[str] = None
-    guia_remision_numero: Optional[str] = None
-    guia_remision_fecha: Optional[date] = None
+    guia_remision: Optional[str] = None
     subtotal: Optional[Decimal] = None
     igv: Optional[Decimal] = None
     total: Optional[Decimal] = None
@@ -148,33 +132,32 @@ class FacturaUpdate(BaseModel):
 # SCHEMA PARA RESPUESTA (DB)
 # ==================================
 
-class FacturaInDB(FacturaBase):
-    """Schema que representa una factura en la base de datos"""
+class DocumentoInDB(DocumentoBase):
+    """Schema que representa un documento en la base de datos"""
     id: int
     uuid: UUID
-    proveedor_id: Optional[int]
+    empresa_id: Optional[int]
+    tipo_documento_id: Optional[int]
     
     # Archivos
-    archivo_original_nombre: str
-    archivo_original_url: str
+    archivo_original_nombre: Optional[str]
+    archivo_original_url: Optional[str]
     archivo_original_tipo: Optional[str]
     archivo_original_size: Optional[int]
-    archivo_pdf_url: Optional[str]
-    archivo_imagen_url: Optional[str]
     
     # OCR
     texto_ocr_completo: Optional[str]
     confianza_ocr_promedio: Optional[Decimal]
-    procesado_con: str
+    procesado_con: Optional[str]
     tiempo_procesamiento_segundos: Optional[Decimal]
     
     # Estado
     estado: str
     es_duplicada: bool
-    factura_original_id: Optional[int]
+    documento_original_id: Optional[int]
     validado: bool
     validado_por: Optional[str]
-    validado_at: Optional[datetime]
+    validado_en: Optional[datetime]
     
     # Versiones
     version: int
@@ -198,30 +181,35 @@ class FacturaInDB(FacturaBase):
 # SCHEMA PÚBLICO (RESPONSE)
 # ==================================
 
-class Factura(FacturaInDB):
+class Documento(DocumentoInDB):
     """Schema público para respuestas de la API"""
-    proveedor: Optional[ProveedorSimple] = None
-    items: List[FacturaItem] = Field(default_factory=list)
+    empresa: Optional[EmpresaSimple] = None
+    tipo_documento: Optional[TipoDocumentoSimple] = None
+    items: List[DocumentoItem] = Field(default_factory=list)
+    datos_guia_remision: Optional[GuiaRemisionResponse] = None
 
 
 # ==================================
 # SCHEMA SIMPLIFICADO PARA LISTADOS
 # ==================================
 
-class FacturaSimple(BaseModel):
+class DocumentoSimple(BaseModel):
     """Schema simplificado para listados"""
     id: int
     uuid: UUID
-    numero_factura: str
+    numero_documento: str
     fecha_emision: date
     ruc_emisor: str
     razon_social_emisor: str
-    total: Decimal
-    moneda: str
+    total: Optional[Decimal] = None
+    moneda: Optional[str] = None
     estado: str
     validado: bool
     confianza_ocr_promedio: Optional[Decimal]
     created_at: datetime
+    tipo_documento_id: Optional[int] = None
+    tipo_documento: Optional[TipoDocumentoSimple] = None
+    datos_guia_remision: Optional[GuiaRemisionResponse] = None
     
     class Config:
         from_attributes = True
@@ -231,11 +219,11 @@ class FacturaSimple(BaseModel):
 # SCHEMA PARA RESPUESTA DE OCR
 # ==================================
 
-class FacturaOCRResponse(BaseModel):
+class DocumentoOCRResponse(BaseModel):
     """Respuesta después de procesar OCR"""
-    factura_id: int
+    documento_id: int
     uuid: str
-    numero_factura: Optional[str]
+    numero_documento: Optional[str]
     datos_extraidos: dict
     confianza_promedio: Optional[float]
     tiempo_procesamiento: Optional[float]

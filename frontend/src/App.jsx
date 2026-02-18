@@ -4,7 +4,8 @@ import { Layout } from './components/layout';
 import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
 import ValidarFactura from './pages/ValidarFactura';
-import ListaFacturas from './pages/ListaFacturas';
+import ValidarGuiaRemision from './pages/ValidarGuiaRemision';
+import ListaDocumentos from './pages/ListaDocumentos';
 import Pendientes from './pages/Pendientes';
 
 function App() {
@@ -38,7 +39,8 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="upload" element={<Upload />} />
           <Route path="validar/:id" element={<ValidarFactura />} />
-          <Route path="facturas" element={<ListaFacturas />} />
+          <Route path="validar-guia/:id" element={<ValidarGuiaRemision />} />
+          <Route path="facturas" element={<ListaDocumentos />} />
           <Route path="pendientes" element={<Pendientes />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

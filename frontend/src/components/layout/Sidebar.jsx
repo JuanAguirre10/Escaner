@@ -14,8 +14,8 @@ export default function Sidebar({ isOpen, onClose }) {
 
   const menuItems = [
     { path: '/', icon: Home, label: 'Dashboard' },
-    { path: '/upload', icon: Upload, label: 'Subir Factura' },
-    { path: '/facturas', icon: FileText, label: 'Lista de Facturas' },
+    { path: '/upload', icon: Upload, label: 'Subir Documentos' },
+    { path: '/facturas', icon: FileText, label: 'Lista de Documentos' },
     { path: '/pendientes', icon: CheckCircle, label: 'Pendientes' },
     { path: '/proveedores', icon: Building2, label: 'Proveedores' },
     { path: '/estadisticas', icon: BarChart3, label: 'Estadísticas' },
@@ -82,13 +82,11 @@ export default function Sidebar({ isOpen, onClose }) {
         </nav>
 
         {/* Footer del Sidebar */}
-        {/* Footer del Sidebar */}
-        {/* Footer del Sidebar */}
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-white">
-        <div className="bg-primary-50 rounded-lg p-2">
-            <p className="text-[10px] font-medium text-primary-900 truncate">Sistema de Facturas</p>
-            <p className="text-[10px] text-primary-700">v1.0.0</p>
-        </div>
+          <div className="bg-primary-50 rounded-lg p-2">
+            <p className="text-[10px] font-medium text-primary-900 truncate">Sistema de Documentos</p>
+            <p className="text-[10px] text-primary-700">v2.0.0</p>
+          </div>
         </div>
       </aside>
     </>

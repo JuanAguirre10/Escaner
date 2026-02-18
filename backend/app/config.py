@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     # ==================================
     # INFORMACIÓN DEL PROYECTO
     # ==================================
-    PROJECT_NAME: str = "Sistema de Facturas SUPERVAN"
+    PROJECT_NAME: str = "Sistema de Escaneo de Documentos SUPERVAN"
     PROJECT_VERSION: str = "1.0.0"
     API_V1_PREFIX: str = "/api/v1"
     DEBUG: bool = True
@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
-    DB_NAME: str = "facturas_db"
+    DB_NAME: str = "documentos_db"
     DB_USER: str = "postgres"
     DB_PASSWORD: str = "1234"
     
@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     # ==================================
     # ARCHIVOS Y UPLOADS
     # ==================================
-    UPLOAD_DIR: str = "uploads/facturas"
+    UPLOAD_DIR: str = "uploads/documentos"
     MAX_FILE_SIZE_MB: int = 10
     ALLOWED_EXTENSIONS: str = "pdf,png,jpg,jpeg"
     

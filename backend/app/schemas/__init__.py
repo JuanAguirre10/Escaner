@@ -2,49 +2,79 @@
 Importar todos los schemas aquí
 """
 
-from app.schemas.proveedor import (
-    Proveedor,
-    ProveedorCreate,
-    ProveedorUpdate,
-    ProveedorInDB,
-    ProveedorSimple,
+from app.schemas.tipo_documento import (
+    TipoDocumento,
+    TipoDocumentoCreate,
+    TipoDocumentoUpdate,
+    TipoDocumentoInDB,
+    TipoDocumentoSimple,
 )
 
-from app.schemas.item import (
-    FacturaItem,
-    FacturaItemCreate,
-    FacturaItemUpdate,
-    FacturaItemInDB,
-    FacturaItemSimple,
+
+from app.schemas.empresa import (
+    Empresa,
+    EmpresaCreate,
+    EmpresaUpdate,
+    EmpresaInDB,
+    EmpresaSimple,
+    ValidarRUCRequest,
+    ValidarRUCResponse,
 )
 
-from app.schemas.factura import (
-    Factura,
-    FacturaCreate,
-    FacturaUpdate,
-    FacturaInDB,
-    FacturaSimple,
-    FacturaOCRResponse,
+from app.schemas.documento_item import (
+    DocumentoItem,
+    DocumentoItemCreate,
+    DocumentoItemUpdate,
+    DocumentoItemInDB,
+    DocumentoItemSimple,
+)
+
+from app.schemas.documento import (
+    Documento,
+    DocumentoCreate,
+    DocumentoUpdate,
+    DocumentoInDB,
+    DocumentoSimple,
+    DocumentoOCRResponse,
+)
+
+from app.schemas.guia_remision import (
+    GuiaRemisionCreate,
+    GuiaRemisionUpdate,
+    GuiaRemisionResponse,
 )
 
 __all__ = [
-    # Proveedor
-    "Proveedor",
-    "ProveedorCreate",
-    "ProveedorUpdate",
-    "ProveedorInDB",
-    "ProveedorSimple",
-    # Item
-    "FacturaItem",
-    "FacturaItemCreate",
-    "FacturaItemUpdate",
-    "FacturaItemInDB",
-    "FacturaItemSimple",
-    # Factura
-    "Factura",
-    "FacturaCreate",
-    "FacturaUpdate",
-    "FacturaInDB",
-    "FacturaSimple",
-    "FacturaOCRResponse",
+    # TipoDocumento
+    "TipoDocumento",
+    "TipoDocumentoCreate",
+    "TipoDocumentoUpdate",
+    "TipoDocumentoInDB",
+    "TipoDocumentoSimple",
+    # Empresa
+    "Empresa",
+    "EmpresaCreate",
+    "EmpresaUpdate",
+    "EmpresaInDB",
+    "EmpresaSimple",
+    "ValidarRUCRequest",
+    "ValidarRUCResponse",
+    # DocumentoItem
+    "DocumentoItem",
+    "DocumentoItemCreate",
+    "DocumentoItemUpdate",
+    "DocumentoItemInDB",
+    "DocumentoItemSimple",
+    # Documento
+    "Documento",
+    "DocumentoCreate",
+    "DocumentoUpdate",
+    "DocumentoInDB",
+    "DocumentoSimple",
+    "DocumentoOCRResponse",
+
+
+    "GuiaRemisionCreate",
+    "GuiaRemisionUpdate",
+    "GuiaRemisionResponse",
 ]
