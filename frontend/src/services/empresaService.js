@@ -21,7 +21,7 @@ export const empresaService = {
    * Busca empresas por texto
    */
   async buscar(texto) {
-    const response = await api.get('/empresas/buscar/', { 
+    const response = await api.get('/empresas/buscar', { 
       params: { q: texto } 
     });
     return response.data;
@@ -66,4 +66,7 @@ export const empresaService = {
     const response = await api.delete(`/empresas/${id}`);
     return response.data;
   },
+
+  
 };
+

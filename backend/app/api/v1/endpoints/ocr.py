@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Optional
 
 from app.db.session import get_db
-from app.db.models import Documento, DocumentoItem, Empresa, TipoDocumento, GuiaRemision
+from app.db.models import Documento, DocumentoItem, Empresa, TipoDocumento, GuiaRemision, OrdenCompra
 from app.schemas import DocumentoOCRResponse, DocumentoCreate
 from app.config import settings
 from app.core.ocr.claude_extractor import ClaudeExtractor
@@ -248,6 +248,129 @@ async def procesar_documento(
                 estado=nuevo_documento.estado,
                 mensaje="Guía de remisión procesada exitosamente"
             )
+        
+        elif tipo_documento_id == 3:  # ORDEN DE COMPRA
+            # Procesar como Orden de Compra
+            datos_oc = extractor.extraer_datos_orden_compra(
+                ruta_archivo=str(ruta_archivo),
+                tipo_archivo=file.filename.split(".")[-1].lower()
+            )
+            
+            tiempo_procesamiento = (datetime.now() - inicio_procesamiento).total_seconds()
+            
+            # Verificar empresa (proveedor)
+            empresa = None
+            if empresa_id:
+                empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+            else:
+                ruc_proveedor = datos_oc.get("ruc_proveedor")
+                if ruc_proveedor:
+                    empresa = db.query(Empresa).filter(Empresa.ruc == ruc_proveedor).first()
+            
+            # Crear documento base
+            nuevo_documento = Documento(
+                empresa_id=empresa.id if empresa else None,
+                tipo_documento_id=tipo_documento_id,
+                
+                # Datos básicos
+                numero_documento=datos_oc.get("numero_orden_compra", "TEMP-" + nombre_archivo),
+                serie=datos_oc.get("serie_orden", ""),
+                correlativo=datos_oc.get("correlativo_orden", ""),
+                tipo_comprobante="ORDEN_COMPRA",
+                
+                # Fechas
+                fecha_emision=datos_oc.get("fecha_emision") or datetime.now().date(),
+                
+                # Datos del emisor (COMPRADOR = SUPERVAN)
+                ruc_emisor=datos_oc.get("ruc_comprador", ""),
+                razon_social_emisor=datos_oc.get("razon_social_comprador", ""),
+                direccion_emisor=datos_oc.get("direccion_comprador"),
+                telefono_emisor=datos_oc.get("telefono_comprador"),
+                
+                # Datos del cliente (PROVEEDOR)
+                ruc_cliente=datos_oc.get("ruc_proveedor", ""),
+                razon_social_cliente=datos_oc.get("razon_social_proveedor", ""),
+                direccion_cliente=datos_oc.get("direccion_proveedor"),
+                
+                # Montos
+                subtotal=datos_oc.get("subtotal", 0.0),
+                igv=datos_oc.get("igv", 0.0),
+                total=datos_oc.get("total", 0.0),
+                moneda=datos_oc.get("moneda", "PEN"),
+                
+                # Observaciones
+                observaciones=datos_oc.get("observaciones"),
+                
+                # Archivos
+                archivo_original_nombre=nombre_archivo,
+                archivo_original_url=str(ruta_archivo),
+                archivo_original_tipo=file.filename.split(".")[-1].lower(),
+                archivo_original_size=tamaño,
+                
+                # OCR
+                texto_ocr_completo=datos_oc.get("texto_completo", ""),
+                datos_ocr_json=str(datos_oc),
+                confianza_ocr_promedio=datos_oc.get("confianza_promedio", 0.0),
+                procesado_con="claude_vision",
+                tiempo_procesamiento_segundos=tiempo_procesamiento,
+                
+                # Estado
+                estado="pendiente_validacion",
+                validado=False,
+            )
+            
+            db.add(nuevo_documento)
+            db.flush()
+            
+            # Crear registro de OrdenCompra
+            nueva_oc = OrdenCompra(
+                documento_id=nuevo_documento.id,
+                numero_orden_compra=datos_oc.get("numero_orden_compra", ""),
+                serie_orden=datos_oc.get("serie_orden"),
+                correlativo_orden=datos_oc.get("correlativo_orden"),
+                ruc_comprador=datos_oc.get("ruc_comprador", ""),
+                razon_social_comprador=datos_oc.get("razon_social_comprador"),
+                direccion_comprador=datos_oc.get("direccion_comprador"),
+                telefono_comprador=datos_oc.get("telefono_comprador"),
+                ruc_proveedor=datos_oc.get("ruc_proveedor", ""),
+                razon_social_proveedor=datos_oc.get("razon_social_proveedor"),
+                direccion_proveedor=datos_oc.get("direccion_proveedor"),
+                fecha_entrega=datos_oc.get("fecha_entrega"),
+                direccion_entrega=datos_oc.get("direccion_entrega"),
+                modo_pago=datos_oc.get("modo_pago")
+            )
+            
+            db.add(nueva_oc)
+            
+            # Items de la orden de compra
+            items = datos_oc.get("items", [])
+            for idx, item_data in enumerate(items, 1):
+                nuevo_item = DocumentoItem(
+                    documento_id=nuevo_documento.id,
+                    orden=idx,
+                    codigo_producto=item_data.get("codigo"),
+                    descripcion=item_data.get("descripcion", ""),
+                    cantidad=item_data.get("cantidad", 1.0),
+                    unidad_medida=item_data.get("unidad_medida", "UND"),
+                    precio_unitario=item_data.get("precio_unitario", 0.0),
+                    valor_total=item_data.get("importe", 0.0),
+                )
+                db.add(nuevo_item)
+            
+            db.commit()
+            db.refresh(nuevo_documento)
+            
+            return DocumentoOCRResponse(
+                documento_id=nuevo_documento.id,
+                uuid=str(nuevo_documento.uuid),
+                numero_documento=nuevo_documento.numero_documento,
+                datos_extraidos=datos_oc,
+                confianza_promedio=float(nuevo_documento.confianza_ocr_promedio or 0),
+                tiempo_procesamiento=tiempo_procesamiento,
+                estado=nuevo_documento.estado,
+                mensaje="Orden de compra procesada exitosamente"
+            )
+        
         
         else:  # FACTURA u otros documentos con montos
             # Procesar como factura

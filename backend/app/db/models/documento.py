@@ -157,5 +157,13 @@ class Documento(Base):
     documento_original = relationship("Documento", remote_side=[id], foreign_keys=[documento_original_id], backref="duplicados")
     version_anterior = relationship("Documento", remote_side=[id], foreign_keys=[version_anterior_id], backref="versiones_posteriores")
     
+    # Relación con Orden de Compra
+    datos_orden_compra = relationship(
+        "OrdenCompra", 
+        back_populates="documento", 
+        uselist=False, 
+        cascade="all, delete-orphan"
+    )
+
     def __repr__(self):
         return f"<Documento {self.numero_documento} - {self.razon_social_emisor} - {self.moneda} {self.total}>"

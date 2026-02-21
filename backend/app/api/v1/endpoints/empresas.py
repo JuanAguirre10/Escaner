@@ -3,9 +3,11 @@ Endpoints para Empresas (antes Proveedores)
 Incluye validación de RUC y CRUD completo
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List
+from sqlalchemy import or_
+
 
 from app.db.session import get_db
 from app.db.models import Empresa
@@ -59,6 +61,35 @@ def validar_ruc(
             empresa=None,
             mensaje="Empresa no registrada. Debe agregarse manualmente."
         )
+
+@router.get("/buscar", response_model=List[EmpresaSimple])
+def buscar_empresas(
+    q: str = Query(..., min_length=3, description="Texto de búsqueda (mínimo 3 caracteres)"),
+    limit: int = Query(10, ge=1, le=50, description="Máximo de resultados"),
+    db: Session = Depends(get_db)
+):
+    """
+    Busca empresas por RUC o razón social
+    
+    **Parámetros:**
+    - q: Texto de búsqueda (RUC parcial o nombre)
+    - limit: Cantidad máxima de resultados (default: 10)
+    
+    **Retorna:**
+    - Lista de empresas que coinciden con la búsqueda
+    """
+    # Buscar por RUC o razón social
+    query = db.query(Empresa).filter(
+        
+        or_(
+            Empresa.ruc.ilike(f"%{q}%"),
+            Empresa.razon_social.ilike(f"%{q}%")
+        )
+    ).order_by(Empresa.razon_social)
+    
+    empresas = query.limit(limit).all()
+    
+    return empresas
 
 
 # ==================================

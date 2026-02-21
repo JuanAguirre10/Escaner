@@ -9,7 +9,7 @@ const api = axios.create({
     'Content-Type': 'application/json; charset=utf-8',
     'Accept': 'application/json; charset=utf-8',
   },
-  timeout: 30000, // 30 segundos
+  timeout: 60000,  // ← 60 segundos (1 minuto)
 });
 
 // Interceptor para requests

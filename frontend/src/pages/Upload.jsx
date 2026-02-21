@@ -17,9 +17,10 @@ export default function Upload() {
   const [validandoRuc, setValidandoRuc] = useState(false);
   const [rucValidado, setRucValidado] = useState(false);
   
+  
   // Estados para tipos de documento y pestaña activa
   const [tiposDocumento, setTiposDocumento] = useState([]);
-  const [tipoSeleccionado, setTipoSeleccionado] = useState(TIPOS_DOCUMENTO.FACTURA);
+  const [tipoSeleccionado, setTipoSeleccionado] = useState(TIPOS_DOCUMENTO.ORDEN_COMPRA);
   
   // Estados para archivo
   const [archivo, setArchivo] = useState(null);
@@ -28,6 +29,10 @@ export default function Upload() {
   const [dragActive, setDragActive] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showProgressToast, setShowProgressToast] = useState(false);
+  const [busquedaEmpresa, setBusquedaEmpresa] = useState('');
+  const [sugerencias, setSugerencias] = useState([]);
+  const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
+  const [buscando, setBuscando] = useState(false);
 
   // Cargar tipos de documento al montar
   useEffect(() => {
@@ -41,6 +46,35 @@ export default function Upload() {
     } catch (error) {
       console.error('Error cargando tipos de documento:', error);
     }
+  };
+
+  const buscarEmpresas = async (texto) => {
+    if (texto.length < 3) {
+      setSugerencias([]);
+      return;
+    }
+
+    try {
+      setBuscando(true);
+      const resultados = await empresaService.buscar(texto);
+      setSugerencias(resultados);
+      setMostrarSugerencias(true);
+    } catch (error) {
+      console.error('Error buscando empresas:', error);
+      setSugerencias([]);
+    } finally {
+      setBuscando(false);
+    }
+  };
+
+  const seleccionarEmpresa = (empresaSeleccionada) => {
+    setRuc(empresaSeleccionada.ruc);
+    setEmpresa(empresaSeleccionada);
+    setRucValidado(true);
+    setBusquedaEmpresa('');
+    setSugerencias([]);
+    setMostrarSugerencias(false);
+    toast.success(`Empresa seleccionada: ${empresaSeleccionada.razon_social}`);
   };
 
   const handleValidarRuc = async () => {
@@ -70,6 +104,7 @@ export default function Upload() {
       setValidandoRuc(false);
     }
   };
+  
 
   const handleDrag = useCallback((e) => {
     e.preventDefault();
@@ -203,29 +238,51 @@ export default function Upload() {
           </div>
 
           <div className="space-y-4">
-            <Input
-              label="RUC de la Empresa Emisora"
-              placeholder="Ej: 20516185211"
-              value={ruc}
-              onChange={(e) => {
-                const valor = e.target.value.replace(/\D/g, '').slice(0, 11);
-                setRuc(valor);
-                setRucValidado(false);
-                setEmpresa(null);
-              }}
-              maxLength={11}
-              disabled={rucValidado}
-            />
+            <div className="relative">
+              <Input
+                label="RUC o Nombre de la Empresa"
+                placeholder="Busca por RUC o nombre (mín. 3 caracteres)"
+                value={rucValidado ? empresa?.razon_social : busquedaEmpresa}
+                onChange={(e) => {
+                  const valor = e.target.value;
+                  setBusquedaEmpresa(valor);
+                  setRucValidado(false);
+                  setEmpresa(null);
+                  buscarEmpresas(valor);
+                }}
+                disabled={rucValidado}
+              />
+
+              {/* Sugerencias de autocompletado */}
+              {mostrarSugerencias && sugerencias.length > 0 && !rucValidado && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                  {sugerencias.map((empresa) => (
+                    <button
+                      key={empresa.id}
+                      onClick={() => seleccionarEmpresa(empresa)}
+                      className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-all duration-200 hover:shadow-sm"
+                    >
+                      <p className="font-semibold text-gray-900 text-base">{empresa.razon_social}</p>
+                      <p className="text-sm text-gray-500 mt-1">RUC: {empresa.ruc}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {buscando && (
+                <div className="absolute right-3 top-9">
+                  <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              )}
+            </div>
+
+            {!rucValidado && busquedaEmpresa.length < 3 && (
+              <p className="text-sm text-gray-500 italic">
+                Escribe al menos 3 caracteres para buscar
+              </p>
+            )}
             
-            {!rucValidado ? (
-              <button
-                onClick={handleValidarRuc}
-                disabled={validandoRuc || ruc.length !== 11}
-                className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {validandoRuc ? 'Validando...' : 'Validar RUC'}
-              </button>
-            ) : (
+            {rucValidado && (
               <button
                 onClick={() => {
                   setRuc('');
@@ -233,10 +290,11 @@ export default function Upload() {
                   setRucValidado(false);
                   setArchivo(null);
                   setPreview(null);
+                  setBusquedaEmpresa('');
                 }}
                 className="w-full px-4 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-medium transition-colors"
               >
-                Cambiar RUC
+                Cambiar Empresa
               </button>
             )}
           </div>
@@ -273,7 +331,18 @@ export default function Upload() {
             {/* Tabs */}
             <div className="border-b border-gray-200">
               <nav className="flex -mb-px space-x-8">
-                {tiposDocumento.map((tipo) => {
+                {tiposDocumento
+                  .sort((a, b) => {
+                    // Orden correcto del proceso: OC → Factura → Guía → Nota
+                    const ordenProceso = {
+                      'ORDEN_COMPRA': 1,
+                      'FACTURA': 2,
+                      'GUIA_REMISION': 3,
+                      'NOTA_ENTREGA': 4
+                    };
+                    return (ordenProceso[a.codigo] || 999) - (ordenProceso[b.codigo] || 999);
+                  })
+                  .map((tipo) => {
                   const esActivo = tipo.id === tipoSeleccionado;
                   const estaHabilitado = tipo.activo;
 

@@ -366,6 +366,131 @@ def obtener_items_documento(
     
     return items
 
+@router.put("/items/{item_id}")
+def actualizar_item(
+    item_id: int,
+    data: dict,
+    db: Session = Depends(get_db)
+):
+    """Actualiza un item de documento"""
+    item = db.query(DocumentoItem).filter(
+        DocumentoItem.id == item_id
+    ).first()
+    
+    if not item:
+        raise HTTPException(
+            status_code=404,
+            detail="Item no encontrado"
+        )
+    
+    # Actualizar campos
+    if "codigo_producto" in data:
+        item.codigo_producto = data["codigo_producto"]
+    if "descripcion" in data:
+        item.descripcion = data["descripcion"]
+    if "cantidad" in data:
+        item.cantidad = data["cantidad"]
+    if "unidad_medida" in data:
+        item.unidad_medida = data["unidad_medida"]
+    if "precio_unitario" in data:
+        item.precio_unitario = data["precio_unitario"]
+    if "valor_total" in data:
+        item.valor_total = data["valor_total"]
+    
+    db.commit()
+    db.refresh(item)
+    
+    return item
+
+
+
+# ==================================
+# ORDEN DE COMPRA
+# ==================================
+
+@router.get("/{documento_id}/orden-compra")
+def obtener_orden_compra(
+    documento_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene datos específicos de orden de compra
+    """
+    from app.db.models import OrdenCompra
+    
+    orden = db.query(OrdenCompra).filter(
+        OrdenCompra.documento_id == documento_id
+    ).first()
+    
+    if not orden:
+        raise HTTPException(
+            status_code=404,
+            detail="Orden de compra no encontrada"
+        )
+    
+    return {
+        "id": orden.id,
+        "documento_id": orden.documento_id,
+        "numero_orden_compra": orden.numero_orden_compra,
+        "serie_orden": orden.serie_orden,
+        "correlativo_orden": orden.correlativo_orden,
+        "ruc_comprador": orden.ruc_comprador,
+        "razon_social_comprador": orden.razon_social_comprador,
+        "direccion_comprador": orden.direccion_comprador,
+        "telefono_comprador": orden.telefono_comprador,
+        "ruc_proveedor": orden.ruc_proveedor,
+        "razon_social_proveedor": orden.razon_social_proveedor,
+        "direccion_proveedor": orden.direccion_proveedor,
+        "fecha_entrega": orden.fecha_entrega,
+        "direccion_entrega": orden.direccion_entrega,
+        "modo_pago": orden.modo_pago
+    }
+
+
+@router.put("/{documento_id}/orden-compra")
+def actualizar_orden_compra(
+    documento_id: int,
+    data: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Actualiza datos de orden de compra
+    """
+    from app.db.models import OrdenCompra
+    
+    orden = db.query(OrdenCompra).filter(
+        OrdenCompra.documento_id == documento_id
+    ).first()
+    
+    if not orden:
+        raise HTTPException(
+            status_code=404,
+            detail="Orden de compra no encontrada"
+        )
+    
+    # Actualizar campos
+    if "fecha_entrega" in data:
+        orden.fecha_entrega = data["fecha_entrega"]
+    if "direccion_entrega" in data:
+        orden.direccion_entrega = data["direccion_entrega"]
+    if "modo_pago" in data:
+        orden.modo_pago = data["modo_pago"]
+    
+    db.commit()
+    db.refresh(orden)
+    
+    return {
+        "mensaje": "Orden de compra actualizada correctamente",
+        "orden_compra": {
+            "id": orden.id,
+            "fecha_entrega": orden.fecha_entrega,
+            "direccion_entrega": orden.direccion_entrega,
+            "modo_pago": orden.modo_pago
+        }
+    }
+
+
+
 
 # ==================================
 # ESTADÍSTICAS

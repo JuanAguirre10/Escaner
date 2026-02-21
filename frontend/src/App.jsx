@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
 import ValidarFactura from './pages/ValidarFactura';
 import ValidarGuiaRemision from './pages/ValidarGuiaRemision';
+import ValidarOrdenCompra from './pages/ValidarOrdenCompra';
 import ListaDocumentos from './pages/ListaDocumentos';
 import Pendientes from './pages/Pendientes';
 
@@ -40,6 +41,7 @@ function App() {
           <Route path="upload" element={<Upload />} />
           <Route path="validar/:id" element={<ValidarFactura />} />
           <Route path="validar-guia/:id" element={<ValidarGuiaRemision />} />
+          <Route path="/validar-orden/:id" element={<ValidarOrdenCompra />} />
           <Route path="facturas" element={<ListaDocumentos />} />
           <Route path="pendientes" element={<Pendientes />} />
           <Route path="*" element={<Navigate to="/" replace />} />

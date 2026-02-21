@@ -23,6 +23,9 @@ engine = create_engine(
     pool_size=10,        # Número de conexiones en el pool
     max_overflow=20,     # Conexiones adicionales si se necesitan
     echo=settings.DEBUG, # Mostrar SQL en consola si DEBUG=True
+    connect_args={
+        "options": "-c client_encoding=utf8"  # ← FORZAR UTF-8
+    }
 )
 
 # ==================================

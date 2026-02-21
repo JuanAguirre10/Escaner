@@ -36,6 +36,10 @@ export default function ValidarFactura() {
           console.log('🔄 Redirigiendo a vista de guía de remisión...');
           navigate(`/validar-guia/${id}`, { replace: true });
           return; // Detener ejecución
+        } else if (data.tipo_documento_id === 3) {
+          console.log('🔄 Redirigiendo a vista de orden de compra...');
+          navigate(`/validar-orden/${id}`, { replace: true });
+          return; // Detener ejecución
         }
         
         setFormData({
@@ -162,7 +166,7 @@ export default function ValidarFactura() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Validar Documentos</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Validar Factura</h1>
           <div className="flex items-center gap-3 mt-2">
             <p className="text-gray-600">#{numeroDocumento}</p>
             <Badge variant={getEstadoColor(factura.estado)}>

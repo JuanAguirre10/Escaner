@@ -11,7 +11,8 @@ export const ESTADOS_FACTURA = ESTADOS_DOCUMENTO;
 export const TIPOS_DOCUMENTO = {
   FACTURA: 1,
   GUIA_REMISION: 2,
-  ORDEN_VENTA: 3,
+  ORDEN_COMPRA: 3,
+  NOTA_ENTREGA: 4,
 };
 
 export const MONEDAS = {

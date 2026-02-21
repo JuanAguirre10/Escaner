@@ -10,7 +10,7 @@ import { TIPOS_DOCUMENTO } from '../utils/constants';
 export default function ListaDocumentos() {
   const [documentos, setDocumentos] = useState([]);
   const [tiposDocumento, setTiposDocumento] = useState([]);
-  const [tipoSeleccionado, setTipoSeleccionado] = useState(TIPOS_DOCUMENTO.FACTURA);
+  const [tipoSeleccionado, setTipoSeleccionado] = useState(TIPOS_DOCUMENTO.ORDEN_COMPRA);
   const [loading, setLoading] = useState(true);
   const [filtros, setFiltros] = useState({
     buscar: '',
@@ -81,7 +81,18 @@ export default function ListaDocumentos() {
       <Card>
         <div className="border-b border-gray-200 mb-6">
           <nav className="flex -mb-px space-x-8">
-            {tiposDocumento.map((tipo) => {
+            {tiposDocumento
+              .sort((a, b) => {
+                // Orden correcto del proceso: OC → Factura → Guía → Nota
+                const ordenProceso = {
+                  'ORDEN_COMPRA': 1,
+                  'FACTURA': 2,
+                  'GUIA_REMISION': 3,
+                  'NOTA_ENTREGA': 4
+                };
+                return (ordenProceso[a.codigo] || 999) - (ordenProceso[b.codigo] || 999);
+              })
+              .map((tipo) => {
               const esActivo = tipo.id === tipoSeleccionado;
               const estaHabilitado = tipo.activo;
 
@@ -180,6 +191,17 @@ export default function ListaDocumentos() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                       <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
                     </>
+                  ) : tipoSeleccionado === 3 ? (
+                    // COLUMNAS ORDEN DE COMPRA
+                    <>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° OC</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Proveedor</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Emisión</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Entrega</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                    </>
                   ) : (
                     // COLUMNAS FACTURA / OTROS
                     <>
@@ -193,6 +215,8 @@ export default function ListaDocumentos() {
                   )}
                 </tr>
               </thead>
+
+              
               <tbody className="divide-y divide-gray-200">
                 {documentos.map((doc) => (
                   <tr key={doc.id} className="hover:bg-gray-50">
@@ -249,6 +273,58 @@ export default function ListaDocumentos() {
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-center gap-2">
                             <Link to={`/validar-guia/${doc.id}`}>
+                              <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                                <Eye size={18} />
+                              </button>
+                            </Link>
+                            <button 
+                              onClick={() => handleEliminar(doc.id)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    ) : tipoSeleccionado === 3 ? (
+                      // FILA ORDEN DE COMPRA
+                      <>
+                        <td className="px-4 py-3">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                              {doc.numero_documento}
+                            </p>
+                            <p className="text-xs text-gray-500">Serie: {doc.serie}</p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div>
+                            <p className="text-sm text-gray-900 max-w-xs truncate">
+                              {doc.razon_social_cliente}
+                            </p>
+                            <p className="text-xs text-gray-500">RUC: {doc.ruc_cliente}</p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900">
+                          {formatDate(doc.fecha_emision)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900">
+                          {doc.datos_orden_compra?.fecha_entrega 
+                            ? formatDate(doc.datos_orden_compra.fecha_entrega)
+                            : 'N/A'
+                          }
+                        </td>
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">
+                          {formatMoney(doc.total, doc.moneda)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant={getEstadoColor(doc.estado)}>
+                            {formatEstado(doc.estado)}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-2">
+                            <Link to={`/validar-orden/${doc.id}`}>
                               <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                                 <Eye size={18} />
                               </button>

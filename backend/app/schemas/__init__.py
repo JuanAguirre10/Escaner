@@ -44,6 +44,13 @@ from app.schemas.guia_remision import (
     GuiaRemisionResponse,
 )
 
+from app.schemas.orden_compra import (
+    OrdenCompraBase,
+    OrdenCompraCreate,
+    OrdenCompraUpdate,
+    OrdenCompraResponse
+)
+
 __all__ = [
     # TipoDocumento
     "TipoDocumento",

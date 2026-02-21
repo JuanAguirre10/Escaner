@@ -7,6 +7,7 @@ from app.db.models.guia_remision import GuiaRemision
 from app.db.models.empresa import Empresa
 from app.db.models.documento import Documento
 from app.db.models.documento_item import DocumentoItem
+from app.db.models.orden_compra import OrdenCompra
 
 __all__ = [
     "TipoDocumento",
@@ -14,4 +15,5 @@ __all__ = [
     "Empresa",
     "Documento",
     "DocumentoItem",
+    "OrdenCompra", 
 ]

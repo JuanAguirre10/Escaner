@@ -439,16 +439,20 @@ Retorna JSON:
   "transbordo_programado": false,
   "factura_relacionada": "F001-123",
   "items": [
-    {
-      "orden": 1,
-      "codigo_producto": "PROD001",
-      "descripcion": "PRODUCTO EJEMPLO",
-      "cantidad": 10.0,
-      "unidad_medida": "UND"
-      "peso_unitario": "peso en kilogramos de cada item (si aparece, sino 0)"
-    }
-  ]
+        {
+            "codigo": "código del producto",
+            "descripcion": "descripción completa del producto",
+            "cantidad": "cantidad como número decimal",
+            "unidad_medida": "unidad de medida",
+            "peso_bruto": "peso bruto de este item en kilogramos (si aparece en la tabla PESO BRUTO, sino 0)"
+        }
+    ]
 }
+IMPORTANTE SOBRE PESOS:
+- Si hay una tabla "PESO BRUTO" con pesos por item, extrae cada peso en el campo peso_bruto de cada item
+- Si solo hay PESO TOTAL sin detalle por item, deja peso_bruto en 0 para todos los items
+- El peso_bruto debe estar en kilogramos (KG)
+
 
 INSTRUCCIONES:
 
@@ -527,7 +531,198 @@ VERIFICACIÓN FINAL:
         datos['confianza_promedio'] = 95.0
         
         return datos
+        
+    def extraer_datos_orden_compra(
+        self, 
+        ruta_archivo: str | Path,
+        tipo_archivo: str = "pdf"
+    ) -> Dict[str, Any]:
+        """
+        Extrae datos estructurados de una Orden de Compra usando Claude Vision
+        
+        Args:
+            ruta_archivo: Ruta al archivo PDF o imagen
+            tipo_archivo: Extensión del archivo (pdf, png, jpg, etc.)
+        
+        Returns:
+            Dict con datos extraídos
+        """
+        ruta_archivo = Path(ruta_archivo)
+        
+        # Leer archivo como base64
+        with open(ruta_archivo, 'rb') as f:
+            contenido = base64.standard_b64encode(f.read()).decode('utf-8')
+        
+        # Determinar tipo de contenido
+        extension = ruta_archivo.suffix.lower() if ruta_archivo.suffix else f".{tipo_archivo}"
+        
+        media_types = {
+            '.pdf': 'application/pdf',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.webp': 'image/webp',
+            '.gif': 'image/gif'
+        }
+        
+        media_type = media_types.get(extension, 'application/pdf')
+        content_type = "image" if extension in ['.png', '.jpg', '.jpeg', '.webp', '.gif'] else "document"
+        
+        # Generar prompt
+        prompt = self._generar_prompt_orden_compra()
+        
+        # Llamar a Claude Vision
+        message = self.client.messages.create(
+            model=self.model,
+            max_tokens=4096,
+            messages=[{
+                "role": "user",
+                "content": [{
+                    "type": content_type,
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": contenido,
+                    },
+                }, {
+                    "type": "text",
+                    "text": prompt
+                }],
+            }],
+        )
+        
+        # Extraer respuesta
+        respuesta = message.content[0].text
+        
+        # Limpiar JSON de la respuesta
+        respuesta = self._limpiar_json(respuesta)
+        
+        # Parsear JSON
+        try:
+            datos = json.loads(respuesta.strip())
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Error parseando respuesta de Claude: {e}\nRespuesta: {respuesta}")
+        
+        # Convertir tipos de datos
+        datos = self._convertir_tipos_datos_orden_compra(datos)
+        
+        return datos
+    
+    
+    def _generar_prompt_orden_compra(self) -> str:
+        """Genera el prompt para extraer datos de Orden de Compra"""
+        return """
+Eres un experto en procesamiento de documentos comerciales peruanos.
 
+Analiza esta ORDEN DE COMPRA y extrae la siguiente información en formato JSON.
+
+CAMPOS A EXTRAER:
+
+{
+    "numero_orden_compra": "número completo de la OC (ej: 0001-68688)",
+    "serie_orden": "serie (ej: 0001)",
+    "correlativo_orden": "correlativo (ej: 68688)",
+    
+    "fecha_emision": "fecha de emisión en formato YYYY-MM-DD",
+    "fecha_entrega": "fecha de entrega en formato YYYY-MM-DD",
+    
+    "ruc_comprador": "RUC del comprador (quien emite la OC)",
+    "razon_social_comprador": "razón social del comprador",
+    "direccion_comprador": "dirección del comprador",
+    "telefono_comprador": "teléfono del comprador",
+    
+    "ruc_proveedor": "RUC del proveedor",
+    "razon_social_proveedor": "razón social del proveedor",
+    "direccion_proveedor": "dirección del proveedor",
+    
+    "direccion_entrega": "dirección de entrega de la mercadería",
+    "modo_pago": "modo o condición de pago",
+    "moneda": "moneda (Soles, Dolares Americanos → convertir a PEN, USD)",
+    
+    "observaciones": "observaciones o notas adicionales",
+    
+    "subtotal": "subtotal sin IGV como número decimal",
+    "igv": "IGV como número decimal",
+    "total": "total como número decimal",
+    
+    "items": [
+        {
+            "codigo": "código del producto",
+            "descripcion": "descripción del producto o servicio",
+            "cantidad": "cantidad como número decimal",
+            "unidad_medida": "unidad de medida (UND, KG, etc)",
+            "precio_unitario": "precio unitario como número decimal",
+            "importe": "importe total del item como número decimal",
+            "peso_bruto": "peso bruto de este item en KG (si aparece, sino 0)"
+        }
+    ],
+    
+    "peso_total": "peso bruto total de todos los items en KG (si aparece, sino null)",
+    "unidad_peso": "unidad del peso (KG, KGM, TNE, etc)",
+    
+    "confianza_promedio": 95.0
+}
+
+IMPORTANTE SOBRE PESOS:
+- Algunas OC tienen peso por item Y peso total
+- Otras OC solo tienen peso total (sin detalle por item)
+- Otras OC no tienen ningún dato de peso
+- Si hay peso por item, extráelo en cada item
+- Si solo hay peso total, ponlo en "peso_total"
+- Si no hay pesos, usa 0 o null
+
+INSTRUCCIONES:
+- Extrae TODOS los campos que encuentres
+- Si un campo no existe, usa null
+- Para fechas usa formato YYYY-MM-DD
+- Para números usa decimales (ej: 465.63)
+- Para moneda: "Soles" → "PEN", "Dolares Americanos" o "US$" → "USD"
+- La confianza es tu estimación de precisión (0-100)
+- Responde SOLO con el JSON, sin explicaciones adicionales
+"""
+    
+    
+    def _convertir_tipos_datos_orden_compra(self, datos: dict) -> dict:
+        """Convierte tipos de datos de la orden de compra"""
+        from datetime import datetime
+        from decimal import Decimal
+        
+        # Convertir fechas
+        if datos.get("fecha_emision"):
+            try:
+                datos["fecha_emision"] = datetime.strptime(
+                    datos["fecha_emision"], "%Y-%m-%d"
+                ).date()
+            except:
+                datos["fecha_emision"] = None
+        
+        if datos.get("fecha_entrega"):
+            try:
+                datos["fecha_entrega"] = datetime.strptime(
+                    datos["fecha_entrega"], "%Y-%m-%d"
+                ).date()
+            except:
+                datos["fecha_entrega"] = None
+        
+        # Convertir montos a Decimal
+        for campo in ["subtotal", "igv", "total"]:
+            if datos.get(campo):
+                try:
+                    datos[campo] = Decimal(str(datos[campo]))
+                except:
+                    datos[campo] = Decimal("0.00")
+        
+        # Convertir items
+        if datos.get("items"):
+            for item in datos["items"]:
+                for campo in ["cantidad", "precio_unitario", "importe", "peso_bruto"]:
+                    if item.get(campo):
+                        try:
+                            item[campo] = Decimal(str(item[campo]))
+                        except:
+                            item[campo] = Decimal("0.00")
+        
+        return datos
 
 # ==================================
 # FUNCIÓN LEGACY PARA COMPATIBILIDAD

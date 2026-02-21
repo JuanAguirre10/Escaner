@@ -74,6 +74,48 @@ export const documentoService = {
     const response = await api.get(`/documentos/${id}/items`);
     return response.data;
   },
+  
+  /**
+   * Actualiza un item de documento
+   */
+  async actualizarItem(itemId, data) {
+    const response = await api.put(`/documentos/items/${itemId}`, data);
+    return response.data;
+  },
+
+  /**
+   * Valida un documento
+   */
+  async validar(id) {
+    const response = await api.post(`/documentos/${id}/validar`);
+    return response.data;
+  },
+
+  /**
+   * Rechaza un documento
+   */
+  async rechazar(id, motivo) {
+    const response = await api.post(`/documentos/${id}/rechazar`, null, {
+      params: { motivo }
+    });
+    return response.data;
+  },
+  
+  /**
+   * Obtiene datos específicos de orden de compra
+   */
+  async obtenerOrdenCompra(documentoId) {
+    const response = await api.get(`/documentos/${documentoId}/orden-compra`);
+    return response.data;
+  },
+
+  /**
+   * Actualiza datos de orden de compra
+   */
+  async actualizarOrdenCompra(documentoId, data) {
+    const response = await api.put(`/documentos/${documentoId}/orden-compra`, data);
+    return response.data;
+  },
 };
 
 // Alias para compatibilidad con código existente
