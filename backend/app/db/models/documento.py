@@ -33,6 +33,7 @@ class Documento(Base):
     # RELACIONES CON EMPRESA Y TIPO
     # ==================================
     empresa_id = Column(Integer, ForeignKey("documentos_db.empresas.id", ondelete="SET NULL"), index=True)
+    expediente_id = Column(Integer, ForeignKey("documentos_db.expedientes.id"), nullable=True, index=True)
     tipo_documento_id = Column(Integer, ForeignKey("documentos_db.tipos_documento.id", ondelete="SET NULL"), index=True)
     
     # ==================================
@@ -149,6 +150,7 @@ class Documento(Base):
     # RELACIONES
     # ==================================
     empresa = relationship("Empresa", back_populates="documentos", foreign_keys=[empresa_id])
+    expediente = relationship("Expediente", back_populates="documentos")
     tipo_documento = relationship("TipoDocumento", back_populates="documentos", foreign_keys=[tipo_documento_id])
     items = relationship("DocumentoItem", back_populates="documento", cascade="all, delete-orphan", lazy="dynamic")
     datos_guia_remision = relationship("GuiaRemision", back_populates="documento", uselist=False, cascade="all, delete-orphan")

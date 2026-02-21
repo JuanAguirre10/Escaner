@@ -50,6 +50,22 @@ from app.schemas.orden_compra import (
     OrdenCompraUpdate,
     OrdenCompraResponse
 )
+from .nota_entrega import (
+    NotaEntregaBase,
+    NotaEntregaCreate,
+    NotaEntregaUpdate,
+    NotaEntregaResponse
+)
+
+from .expediente import (
+    ExpedienteBase,
+    ExpedienteCreate,
+    ExpedienteUpdate,
+    ExpedienteResponse,
+    ExpedienteDetalle,
+    DocumentoExpediente,
+    NotaEntregaExpediente
+)
 
 __all__ = [
     # TipoDocumento
@@ -80,8 +96,25 @@ __all__ = [
     "DocumentoSimple",
     "DocumentoOCRResponse",
 
-
+    # Guía Remisión
     "GuiaRemisionCreate",
     "GuiaRemisionUpdate",
     "GuiaRemisionResponse",
+
+    # Orden Compra
+    "OrdenCompraBase", 
+    "OrdenCompraCreate", 
+    "OrdenCompraUpdate", 
+    "OrdenCompraResponse",
+    
+    # Nota Entrega
+    "NotaEntregaBase", 
+    "NotaEntregaCreate", 
+    "NotaEntregaUpdate", 
+    "NotaEntregaResponse",
+
+    
+    # Expediente
+    "ExpedienteBase", "ExpedienteCreate", "ExpedienteUpdate", "ExpedienteResponse",
+    "ExpedienteDetalle", "DocumentoExpediente", "NotaEntregaExpediente",
 ]

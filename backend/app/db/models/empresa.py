@@ -36,6 +36,7 @@ class Empresa(Base):
     # RELACIONES
     # ==================================
     documentos = relationship("Documento", back_populates="empresa", lazy="dynamic")
+    expedientes = relationship("Expediente", back_populates="empresa")
     
     def __repr__(self):
         return f"<Empresa {self.ruc} - {self.razon_social}>"

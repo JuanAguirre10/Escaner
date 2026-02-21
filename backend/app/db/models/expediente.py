@@ -1,12 +1,11 @@
 """
-Modelo de Expediente
-Agrupa documentos relacionados (factura + guía + orden de compra)
+Modelo para Expedientes
+Agrupa documentos relacionados: OC + Factura + Guía + Nota
 """
 
-from sqlalchemy import Column, Integer, String, TIMESTAMP, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Date, TIMESTAMP, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-
 from app.db.base import Base
 
 
@@ -15,19 +14,31 @@ class Expediente(Base):
     __table_args__ = {'schema': 'documentos_db'}
     
     id = Column(Integer, primary_key=True, index=True)
-    empresa_id = Column(Integer, ForeignKey("documentos_db.empresas.id"), nullable=False)
     
-    # Identificador único del expediente
-    numero_expediente = Column(String(50), unique=True, nullable=False, index=True)
+    # Identificación
+    codigo_expediente = Column(String(50), nullable=False, unique=True, index=True)
+    numero_orden_compra = Column(String(50), nullable=False, index=True)
     
-    # Descripción
-    descripcion = Column(Text)
+    # Empresa (Proveedor)
+    empresa_id = Column(Integer, ForeignKey("documentos_db.empresas.id"), nullable=False, index=True)
+    
+    # Estado del expediente
+    estado = Column(String(50), default='en_proceso', index=True)
+    # Estados: en_proceso, completo, incompleto, cerrado
+    
+    # Fechas
+    fecha_creacion = Column(Date, nullable=False)
+    fecha_cierre = Column(Date, nullable=True)
+    
+    # Información adicional
+    observaciones = Column(Text)
     
     # Auditoría
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), onupdate=func.now())
     created_by = Column(String(100), default='admin')
+    updated_at = Column(TIMESTAMP(timezone=True), onupdate=func.now())
     
     # Relaciones
     empresa = relationship("Empresa", back_populates="expedientes")
-    documentos = relationship("Documento", back_populates="expediente", cascade="all, delete-orphan")
+    documentos = relationship("Documento", back_populates="expediente")
+    notas_entrega = relationship("NotaEntrega", back_populates="expediente")

@@ -5,6 +5,8 @@ import {
   CheckCircle, 
   Building2, 
   BarChart3,
+  Package,
+  ClipboardCheck,
   X 
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
@@ -16,6 +18,8 @@ export default function Sidebar({ isOpen, onClose }) {
     { path: '/', icon: Home, label: 'Dashboard' },
     { path: '/upload', icon: Upload, label: 'Subir Documentos' },
     { path: '/facturas', icon: FileText, label: 'Lista de Documentos' },
+    { path: '/expedientes', icon: Package, label: 'Expedientes' },
+    { path: '/notas-entrega', icon: ClipboardCheck, label: 'Notas de Entrega' },
     { path: '/pendientes', icon: CheckCircle, label: 'Pendientes' },
     { path: '/proveedores', icon: Building2, label: 'Proveedores' },
     { path: '/estadisticas', icon: BarChart3, label: 'Estadísticas' },

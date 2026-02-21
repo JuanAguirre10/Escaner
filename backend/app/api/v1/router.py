@@ -11,6 +11,8 @@ from app.api.v1.endpoints import (
     documentos,
     ocr,
     guias_remision,
+    notas_entrega,
+    expedientes,
 )
 
 # Crear router principal
@@ -45,3 +47,15 @@ api_router.include_router(
     guias_remision.router, 
     prefix="/guias-remision", 
     tags=["guias-remision"])
+
+api_router.include_router(
+    notas_entrega.router,
+    prefix="/notas-entrega",
+    tags=["Notas de Entrega"]
+)
+
+api_router.include_router(
+    expedientes.router,
+    prefix="/expedientes",
+    tags=["Expedientes"]
+)

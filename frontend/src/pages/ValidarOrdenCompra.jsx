@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Save, X, CheckCircle, AlertCircle, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, Button, Input, Loading } from '../components/common';
@@ -8,6 +8,7 @@ import { documentoService } from '../services';
 export default function ValidarOrdenCompra() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -48,27 +49,28 @@ export default function ValidarOrdenCompra() {
       
       // Actualizar documento base
       await documentoService.actualizar(id, {
-        numero_documento: documento.numero_documento,
-        fecha_emision: documento.fecha_emision,
-        ruc_emisor: documento.ruc_emisor,
-        razon_social_emisor: documento.razon_social_emisor,
-        direccion_emisor: documento.direccion_emisor,
-        telefono_emisor: documento.telefono_emisor,
-        ruc_cliente: documento.ruc_cliente,
-        razon_social_cliente: documento.razon_social_cliente,
-        direccion_cliente: documento.direccion_cliente,
-        subtotal: parseFloat(documento.subtotal),
-        igv: parseFloat(documento.igv),
-        total: parseFloat(documento.total),
-        moneda: documento.moneda,
-        observaciones: documento.observaciones
+        numero_documento: formData.numero_documento,
+        serie: formData.serie,
+        fecha_emision: formData.fecha_emision,
+        ruc_emisor: formData.ruc_emisor,
+        razon_social_emisor: formData.razon_social_emisor,
+        direccion_emisor: formData.direccion_emisor,
+        telefono_emisor: formData.telefono_emisor,
+        ruc_cliente: formData.ruc_cliente,
+        razon_social_cliente: formData.razon_social_cliente,
+        direccion_cliente: formData.direccion_cliente,
+        moneda: formData.moneda,
+        subtotal: formData.subtotal,
+        igv: formData.igv,
+        total: formData.total,
+        observaciones: formData.observaciones
       });
 
-      // Actualizar orden de compra
+      // Actualizar orden de compra específica
       await documentoService.actualizarOrdenCompra(id, {
-        fecha_entrega: ordenCompra.fecha_entrega,
-        direccion_entrega: ordenCompra.direccion_entrega,
-        modo_pago: ordenCompra.modo_pago
+        fecha_entrega: formData.fecha_entrega,
+        direccion_entrega: formData.direccion_entrega,
+        modo_pago: formData.modo_pago
       });
 
       // Actualizar items
@@ -76,18 +78,25 @@ export default function ValidarOrdenCompra() {
         await documentoService.actualizarItem(item.id, {
           codigo_producto: item.codigo_producto,
           descripcion: item.descripcion,
-          cantidad: parseFloat(item.cantidad),
+          cantidad: item.cantidad,
           unidad_medida: item.unidad_medida,
-          precio_unitario: parseFloat(item.precio_unitario),
-          valor_total: parseFloat(item.valor_total)
+          precio_unitario: item.precio_unitario,
+          valor_total: item.valor_total
         });
       }
 
       toast.success('Orden de compra actualizada correctamente');
-      navigate('/documentos');
+      
+      // Volver a Upload con contexto para seguir subiendo
+      navigate('/upload', {
+        state: {
+          empresaId: documento.empresa_id,
+          expedienteId: documento.expediente_id
+        }
+      });
     } catch (error) {
       console.error('Error guardando:', error);
-      toast.error('Error al guardar los cambios');
+      toast.error(error.response?.data?.detail || 'Error al guardar los cambios');
     } finally {
       setSaving(false);
     }
@@ -97,11 +106,18 @@ export default function ValidarOrdenCompra() {
     try {
       setSaving(true);
       await documentoService.validar(id);
-      toast.success('Orden de compra validada correctamente');
-      navigate('/documentos');
+      toast.success('✅ Orden de compra validada correctamente');
+      
+      // Volver a Upload con contexto para seguir subiendo
+      navigate('/upload', {
+        state: {
+          empresaId: documento.empresa_id,
+          expedienteId: documento.expediente_id
+        }
+      });
     } catch (error) {
       console.error('Error validando:', error);
-      toast.error('Error al validar la orden de compra');
+      toast.error(error.response?.data?.detail || 'Error al validar la orden de compra');
     } finally {
       setSaving(false);
     }
@@ -109,16 +125,27 @@ export default function ValidarOrdenCompra() {
 
   const handleRechazar = async () => {
     const motivo = prompt('Ingresa el motivo del rechazo:');
-    if (!motivo) return;
+    
+    if (!motivo) {
+      toast.error('Debes proporcionar un motivo para rechazar');
+      return;
+    }
 
     try {
       setSaving(true);
       await documentoService.rechazar(id, motivo);
       toast.success('Orden de compra rechazada');
-      navigate('/documentos');
+      
+      // Volver a Upload con contexto
+      navigate('/upload', {
+        state: {
+          empresaId: documento.empresa_id,
+          expedienteId: documento.expediente_id
+        }
+      });
     } catch (error) {
       console.error('Error rechazando:', error);
-      toast.error('Error al rechazar la orden de compra');
+      toast.error(error.response?.data?.detail || 'Error al rechazar la orden de compra');
     } finally {
       setSaving(false);
     }
@@ -471,6 +498,29 @@ export default function ValidarOrdenCompra() {
             </Button>
           )}
         </div>
+
+        {/* Botón para continuar subiendo */}
+        {documento.estado === 'validada' && (
+          <div className="mt-4">
+            <button
+              onClick={() => {
+                // Pasar contexto del expediente y empresa
+                navigate('/upload', {
+                  state: {
+                    empresaId: documento.empresa_id,
+                    expedienteId: documento.expediente_id
+                  }
+                });
+              }}
+              className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Subir más documentos a este expediente
+            </button>
+          </div>
+        )}
       </form>
 
       {saving && <Loading fullScreen />}

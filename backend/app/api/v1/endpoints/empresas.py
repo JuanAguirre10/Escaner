@@ -119,6 +119,21 @@ def listar_empresas(
     empresas = query.offset(skip).limit(limit).all()
     return empresas
 
+@router.get("/{empresa_id}")
+def obtener_empresa(
+    empresa_id: int,
+    db: Session = Depends(get_db)
+):
+    """Obtiene una empresa por ID"""
+    empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+    
+    if not empresa:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Empresa con ID {empresa_id} no encontrada"
+        )
+    
+    return empresa
 
 # ==================================
 # OBTENER EMPRESA POR ID
@@ -331,3 +346,21 @@ def buscar_empresas(
     ).limit(10).all()
     
     return empresas
+
+@router.get("/{empresa_id}")
+def obtener_empresa(
+    empresa_id: int,
+    db: Session = Depends(get_db)
+):
+    """Obtiene una empresa por ID"""
+    from app.db.models import Empresa
+    
+    empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+    
+    if not empresa:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Empresa con ID {empresa_id} no encontrada"
+        )
+    
+    return empresa
