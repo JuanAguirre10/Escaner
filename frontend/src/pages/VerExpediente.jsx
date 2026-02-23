@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, FileText, Truck, ClipboardCheck, Download } from 'lucide-react';
+import { ArrowLeft, Package, FileText, Truck, ClipboardCheck, Download, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, Button, Loading, Badge } from '../components/common';
 import { expedienteService } from '../services';
@@ -27,6 +27,36 @@ export default function VerExpediente() {
       toast.error('Error al cargar el expediente');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const descargarZip = async () => {
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/v1/expedientes/${id}/descargar-zip`,
+        {
+          method: 'GET',
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Error al descargar el ZIP');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${expediente.codigo_expediente}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success('Expediente descargado correctamente');
+    } catch (error) {
+      console.error('Error descargando ZIP:', error);
+      toast.error('Error al descargar el expediente');
     }
   };
 
@@ -80,6 +110,10 @@ export default function VerExpediente() {
         <Badge variant={expediente.estado === 'completo' ? 'success' : 'warning'}>
           {expediente.estado === 'completo' ? 'Completo' : 'En Proceso'}
         </Badge>
+        <Button variant="success" onClick={descargarZip}>
+          <Download size={20} />
+          Descargar ZIP
+        </Button>
       </div>
 
       {/* Información General */}
@@ -152,7 +186,7 @@ export default function VerExpediente() {
             expediente.notas_entrega.map((nota) => (
               <div
                 key={nota.id}
-                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <ClipboardCheck className="text-purple-600" size={20} />
@@ -163,12 +197,22 @@ export default function VerExpediente() {
                     </p>
                   </div>
                 </div>
-                <Badge variant={
-                  nota.estado_mercaderia === 'conforme' ? 'success' :
-                  nota.estado_mercaderia === 'no_conforme' ? 'danger' : 'warning'
-                }>
-                  {nota.estado_mercaderia}
-                </Badge>
+                <div className="flex items-center gap-3">
+                  <Badge variant={
+                    nota.estado_mercaderia === 'conforme' ? 'success' :
+                    nota.estado_mercaderia === 'no_conforme' ? 'danger' : 'warning'
+                  }>
+                    {nota.estado_mercaderia}
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/notas-entrega/${nota.id}`)}
+                  >
+                    <Eye size={16} />
+                    Ver
+                  </Button>
+                </div>
               </div>
             ))
           ) : (

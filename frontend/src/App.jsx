@@ -12,6 +12,7 @@ import ListaDocumentos from './pages/ListaDocumentos';
 import Pendientes from './pages/Pendientes';
 import ListaExpedientes from './pages/ListaExpedientes';
 import VerExpediente from './pages/VerExpediente';
+import VerNotaEntrega from './pages/VerNotaEntrega';
 
 function App() {
   return (
@@ -48,6 +49,7 @@ function App() {
           <Route path="/validar-orden/:id" element={<ValidarOrdenCompra />} />
           <Route path="/notas-entrega" element={<ListaNotasEntrega />} />
           <Route path="/notas-entrega/crear" element={<CrearNotaEntrega />} />
+          <Route path="/notas-entrega/:id" element={<VerNotaEntrega />} />
           <Route path="/expedientes" element={<ListaExpedientes />} />
           <Route path="/expedientes/:id" element={<VerExpediente />} />
           <Route path="facturas" element={<ListaDocumentos />} />

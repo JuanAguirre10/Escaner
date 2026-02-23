@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Clock, CheckCircle, AlertCircle, TrendingUp, Building2 } from 'lucide-react';
+import { FileText, Clock, CheckCircle, AlertCircle, TrendingUp, Building2, Package, ClipboardCheck } from 'lucide-react';
 import { Card, Loading, Badge } from '../components/common';
-import { facturaService } from '../services';
+import { documentoService } from '../services';
 import { formatMoney, formatConfianza } from '../utils/formatters';
 
 export default function Dashboard() {
@@ -16,7 +16,7 @@ export default function Dashboard() {
   const cargarEstadisticas = async () => {
     try {
       setLoading(true);
-      const data = await facturaService.estadisticas();
+      const data = await documentoService.estadisticas();
       setStats(data);
     } catch (error) {
       console.error('Error cargando estadísticas:', error);
@@ -32,18 +32,18 @@ export default function Dashboard() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-1">Resumen general del sistema</p>
+        <p className="text-gray-600 mt-1">Resumen general del sistema SUPERVAN</p>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Fila 1 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Total Facturas */}
+        {/* Total Documentos */}
         <Card className="p-6">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Facturas</p>
+              <p className="text-sm font-medium text-gray-600">Total Documentos</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">
-                {stats?.total_facturas || 0}
+                {stats?.total_documentos || 0}
               </p>
             </div>
             <div className="p-3 bg-blue-100 rounded-lg">
@@ -100,10 +100,67 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* Stats Cards - Fila 2: Expedientes y Notas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Total Expedientes */}
+        <Link to="/expedientes">
+          <Card className="p-6 hover:shadow-md transition-shadow cursor-pointer">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Expedientes</p>
+                <p className="text-3xl font-bold text-purple-600 mt-2">
+                  {stats?.expedientes?.total || 0}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {stats?.expedientes?.completos || 0} completos
+                </p>
+              </div>
+              <div className="p-3 bg-purple-100 rounded-lg">
+                <Package className="text-purple-600" size={24} />
+              </div>
+            </div>
+          </Card>
+        </Link>
+
+        {/* Expedientes Incompletos */}
+        <Link to="/expedientes?estado=en_proceso">
+          <Card className="p-6 hover:shadow-md transition-shadow cursor-pointer">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Expedientes Incompletos</p>
+                <p className="text-3xl font-bold text-orange-600 mt-2">
+                  {stats?.expedientes?.incompletos || 0}
+                </p>
+              </div>
+              <div className="p-3 bg-orange-100 rounded-lg">
+                <Package className="text-orange-600" size={24} />
+              </div>
+            </div>
+          </Card>
+        </Link>
+
+        {/* Notas de Entrega */}
+        <Link to="/notas-entrega">
+          <Card className="p-6 hover:shadow-md transition-shadow cursor-pointer">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Notas de Entrega</p>
+                <p className="text-3xl font-bold text-indigo-600 mt-2">
+                  {stats?.total_notas || 0}
+                </p>
+              </div>
+              <div className="p-3 bg-indigo-100 rounded-lg">
+                <ClipboardCheck className="text-indigo-600" size={24} />
+              </div>
+            </div>
+          </Card>
+        </Link>
+      </div>
+
       {/* Totales y OCR */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Totales Monetarios */}
-        <Card title="Totales Facturados">
+        <Card title="Totales Facturados (Validados)">
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center gap-3">
@@ -144,9 +201,9 @@ export default function Dashboard() {
                   <Building2 className="text-purple-600" size={20} />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Total Proveedores</p>
+                  <p className="text-sm text-gray-600">Total Empresas</p>
                   <p className="text-xl font-bold text-gray-900">
-                    {stats?.total_proveedores || 0}
+                    {stats?.total_empresas || 0}
                   </p>
                 </div>
               </div>
@@ -163,7 +220,7 @@ export default function Dashboard() {
                     <p className="text-xl font-bold text-gray-900">
                       {formatConfianza(stats?.confianza_ocr_promedio)}
                     </p>
-                    <Badge variant={stats?.confianza_ocr_promedio >= 95 ? 'green' : stats?.confianza_ocr_promedio >= 80 ? 'yellow' : 'red'}>
+                    <Badge variant={stats?.confianza_ocr_promedio >= 95 ? 'success' : stats?.confianza_ocr_promedio >= 80 ? 'warning' : 'danger'}>
                       {stats?.confianza_ocr_promedio >= 95 ? 'Excelente' : stats?.confianza_ocr_promedio >= 80 ? 'Bueno' : 'Regular'}
                     </Badge>
                   </div>
@@ -176,7 +233,7 @@ export default function Dashboard() {
 
       {/* Acciones Rápidas */}
       <Card title="Acciones Rápidas">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Link
             to="/upload"
             className="p-6 border-2 border-dashed border-primary-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-all text-center group"
@@ -184,7 +241,7 @@ export default function Dashboard() {
             <div className="mx-auto w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center mb-3 group-hover:bg-primary-200 transition-colors">
               <FileText className="text-primary-600" size={24} />
             </div>
-            <p className="font-medium text-gray-900">Subir Nueva Factura</p>
+            <p className="font-medium text-gray-900">Subir Documentos</p>
             <p className="text-sm text-gray-600 mt-1">Procesar con OCR</p>
           </Link>
 
@@ -196,7 +253,18 @@ export default function Dashboard() {
               <Clock className="text-yellow-600" size={24} />
             </div>
             <p className="font-medium text-gray-900">Revisar Pendientes</p>
-            <p className="text-sm text-gray-600 mt-1">{stats?.por_estado?.pendientes || 0} facturas</p>
+            <p className="text-sm text-gray-600 mt-1">{stats?.por_estado?.pendientes || 0} items</p>
+          </Link>
+
+          <Link
+            to="/expedientes"
+            className="p-6 border-2 border-dashed border-purple-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-all text-center group"
+          >
+            <div className="mx-auto w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-3 group-hover:bg-purple-200 transition-colors">
+              <Package className="text-purple-600" size={24} />
+            </div>
+            <p className="font-medium text-gray-900">Ver Expedientes</p>
+            <p className="text-sm text-gray-600 mt-1">{stats?.expedientes?.total || 0} expedientes</p>
           </Link>
 
           <Link
@@ -206,8 +274,8 @@ export default function Dashboard() {
             <div className="mx-auto w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mb-3 group-hover:bg-gray-200 transition-colors">
               <FileText className="text-gray-600" size={24} />
             </div>
-            <p className="font-medium text-gray-900">Ver Todas</p>
-            <p className="text-sm text-gray-600 mt-1">{stats?.total_facturas || 0} facturas</p>
+            <p className="font-medium text-gray-900">Ver Todos</p>
+            <p className="text-sm text-gray-600 mt-1">{stats?.total_documentos || 0} documentos</p>
           </Link>
         </div>
       </Card>

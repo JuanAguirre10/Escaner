@@ -497,46 +497,86 @@ def actualizar_orden_compra(
 # ==================================
 
 @router.get("/stats/resumen")
-def obtener_estadisticas(
+def obtener_resumen_estadisticas(
     db: Session = Depends(get_db)
 ):
-    """Obtiene estadísticas generales de documentos"""
-    from sqlalchemy import func
+    """Obtiene estadísticas generales del sistema"""
+    from sqlalchemy import func, distinct
+    from app.db.models import Expediente, NotaEntrega
     
-    stats = {
-        "total_documentos": db.query(Documento).filter(
-            Documento.deleted_at.is_(None)
-        ).count(),
-        
-        "pendientes_validacion": db.query(Documento).filter(
-            Documento.estado == 'pendiente_validacion',
-            Documento.deleted_at.is_(None)
-        ).count(),
-        
-        "validadas": db.query(Documento).filter(
-            Documento.estado == 'validada',
-            Documento.deleted_at.is_(None)
-        ).count(),
-        
-        "rechazadas": db.query(Documento).filter(
-            Documento.estado == 'rechazada',
-            Documento.deleted_at.is_(None)
-        ).count(),
-        
-        "duplicadas": db.query(Documento).filter(
-            Documento.es_duplicada == True,
-            Documento.deleted_at.is_(None)
-        ).count(),
-        
-        "total_monto": db.query(func.sum(Documento.total)).filter(
-            Documento.deleted_at.is_(None),
-            Documento.estado == 'validada'
-        ).scalar() or 0.0,
-        
-        "confianza_promedio": db.query(func.avg(Documento.confianza_ocr_promedio)).filter(
-            Documento.deleted_at.is_(None),
-            Documento.confianza_ocr_promedio.isnot(None)
-        ).scalar() or 0.0
+    # Total documentos
+    total_documentos = db.query(func.count(Documento.id)).scalar()
+    
+    # Por estado
+    por_estado = db.query(
+        Documento.estado,
+        func.count(Documento.id)
+    ).group_by(Documento.estado).all()
+    
+    estados_dict = {
+        'pendientes': 0,
+        'validadas': 0,
+        'rechazadas': 0
     }
     
-    return stats
+    for estado, count in por_estado:
+        if estado == 'pendiente_validacion':
+            estados_dict['pendientes'] = count
+        elif estado == 'validada':
+            estados_dict['validadas'] = count
+        elif estado == 'rechazada':
+            estados_dict['rechazadas'] = count
+    
+    # Totales monetarios
+    totales_pen = db.query(
+        func.sum(Documento.total)
+    ).filter(
+        Documento.moneda == 'PEN',
+        Documento.estado == 'validada'
+    ).scalar() or 0
+    
+    totales_usd = db.query(
+        func.sum(Documento.total)
+    ).filter(
+        Documento.moneda == 'USD',
+        Documento.estado == 'validada'
+    ).scalar() or 0
+    
+    # Total proveedores (empresas únicas)
+    total_empresas = db.query(
+        func.count(distinct(Documento.empresa_id))
+    ).scalar() or 0
+    
+    # Confianza OCR promedio
+    confianza_promedio = db.query(
+        func.avg(Documento.confianza_ocr_promedio)
+    ).scalar() or 0
+    
+    # Expedientes
+    total_expedientes = db.query(func.count(Expediente.id)).scalar() or 0
+    expedientes_completos = db.query(
+        func.count(Expediente.id)
+    ).filter(Expediente.estado == 'completo').scalar() or 0
+    expedientes_incompletos = db.query(
+        func.count(Expediente.id)
+    ).filter(Expediente.estado.in_(['en_proceso', 'incompleto'])).scalar() or 0
+    
+    # Notas de entrega
+    total_notas = db.query(func.count(NotaEntrega.id)).scalar() or 0
+    
+    return {
+        "total_documentos": total_documentos,
+        "por_estado": estados_dict,
+        "totales": {
+            "soles": float(totales_pen),
+            "dolares": float(totales_usd)
+        },
+        "total_empresas": total_empresas,
+        "confianza_ocr_promedio": float(confianza_promedio) if confianza_promedio else 0,
+        "expedientes": {
+            "total": total_expedientes,
+            "completos": expedientes_completos,
+            "incompletos": expedientes_incompletos
+        },
+        "total_notas": total_notas
+    }

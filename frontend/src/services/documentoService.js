@@ -62,6 +62,9 @@ export const documentoService = {
   /**
    * Obtiene estadísticas generales
    */
+  /**
+   * Obtiene estadísticas generales
+   */
   async estadisticas() {
     const response = await api.get('/documentos/stats/resumen');
     return response.data;
@@ -116,6 +119,20 @@ export const documentoService = {
     const response = await api.put(`/documentos/${documentoId}/orden-compra`, data);
     return response.data;
   },
+
+  /**
+   * Lista documentos pendientes de validación
+   */
+  async listarPendientes() {
+    const response = await api.get('/documentos/', {
+      params: {
+        estado: 'pendiente_validacion'
+      }
+    });
+    return response.data;
+  },
+
+  
 };
 
 // Alias para compatibilidad con código existente

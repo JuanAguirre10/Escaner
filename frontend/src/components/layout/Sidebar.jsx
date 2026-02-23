@@ -21,8 +21,8 @@ export default function Sidebar({ isOpen, onClose }) {
     { path: '/expedientes', icon: Package, label: 'Expedientes' },
     { path: '/notas-entrega', icon: ClipboardCheck, label: 'Notas de Entrega' },
     { path: '/pendientes', icon: CheckCircle, label: 'Pendientes' },
-    { path: '/proveedores', icon: Building2, label: 'Proveedores' },
-    { path: '/estadisticas', icon: BarChart3, label: 'Estadísticas' },
+    //{ path: '/proveedores', icon: Building2, label: 'Proveedores' },
+    //{ path: '/estadisticas', icon: BarChart3, label: 'Estadísticas' },
   ];
 
   const isActive = (path) => {

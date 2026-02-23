@@ -376,3 +376,91 @@ def eliminar_expediente(
     db.commit()
     
     return None
+
+from fastapi.responses import StreamingResponse
+import zipfile
+import io
+import os
+
+@router.get("/{expediente_id}/descargar-zip")
+async def descargar_expediente_zip(
+    expediente_id: int,
+    db: Session = Depends(get_db)
+):
+    """Descarga todos los documentos del expediente en un ZIP"""
+    
+    expediente = db.query(Expediente).options(
+        joinedload(Expediente.documentos)
+    ).filter(Expediente.id == expediente_id).first()
+    
+    if not expediente:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Expediente con ID {expediente_id} no encontrado"
+        )
+    
+    # Crear ZIP en memoria
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        archivos_agregados = 0
+        
+        for documento in expediente.documentos:
+            if documento.archivo_original_url:
+                # La URL es una ruta ABSOLUTA completa
+                archivo_path = documento.archivo_original_url
+                
+                print(f"🔍 Buscando archivo: {archivo_path}")
+                
+                if os.path.exists(archivo_path):
+                    # Nombre del archivo en el ZIP
+                    tipo_nombre = {
+                        1: "Factura",
+                        2: "Guia_Remision",
+                        3: "Orden_Compra"
+                    }.get(documento.tipo_documento_id, "Documento")
+                    
+                    # Usar el nombre original o crear uno
+                    if documento.archivo_original_nombre:
+                        extension = os.path.splitext(documento.archivo_original_nombre)[1]
+                    else:
+                        extension = os.path.splitext(documento.archivo_original_url)[1]
+                    
+                    nombre_en_zip = f"{tipo_nombre}_{documento.numero_documento}{extension}"
+                    
+                    # Agregar archivo al ZIP
+                    try:
+                        with open(archivo_path, 'rb') as f:
+                            zip_file.writestr(nombre_en_zip, f.read())
+                        archivos_agregados += 1
+                        print(f"✅ Agregado: {nombre_en_zip}")
+                    except Exception as e:
+                        print(f"❌ Error agregando {archivo_path}: {str(e)}")
+                else:
+                    print(f"❌ Archivo no encontrado: {archivo_path}")
+        
+        # Si no se agregó ningún archivo, agregar un archivo de texto
+        if archivos_agregados == 0:
+            contenido = f"Expediente: {expediente.codigo_expediente}\n"
+            contenido += f"Orden de Compra: {expediente.numero_orden_compra}\n\n"
+            contenido += "ADVERTENCIA: No se encontraron archivos físicos.\n"
+            contenido += "Los documentos están registrados en el sistema pero los archivos no están disponibles.\n\n"
+            contenido += "Documentos registrados:\n"
+            
+            for doc in expediente.documentos:
+                contenido += f"- Tipo: {doc.tipo_documento_id}, Número: {doc.numero_documento}\n"
+            
+            zip_file.writestr("ADVERTENCIA.txt", contenido)
+        else:
+            print(f"✅ ZIP creado con {archivos_agregados} archivo(s)")
+    
+    # Preparar respuesta
+    zip_buffer.seek(0)
+    
+    return StreamingResponse(
+        iter([zip_buffer.getvalue()]),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename={expediente.codigo_expediente}.zip"
+        }
+    )

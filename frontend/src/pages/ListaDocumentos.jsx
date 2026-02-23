@@ -239,6 +239,11 @@ export default function ListaDocumentos() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-2">
+                          <Link to={`/notas-entrega/${nota.id}`}>
+                          <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                            <Eye size={18} />
+                          </button>
+                        </Link>
                           <button 
                             onClick={() => handleEliminarNota(nota.id)}
                             className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"

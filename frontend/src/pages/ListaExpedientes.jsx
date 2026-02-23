@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Eye, Calendar, CheckCircle } from 'lucide-react';
+import { Package, Eye, Calendar, CheckCircle, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, Button, Badge, Loading } from '../components/common';
 import { expedienteService } from '../services';
@@ -57,6 +57,36 @@ export default function ListaExpedientes() {
         return 'Incompleto';
       default:
         return estado;
+    }
+  };
+
+  const descargarZip = async (expedienteId, codigoExpediente) => {
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/v1/expedientes/${expedienteId}/descargar-zip`,
+        {
+          method: 'GET',
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Error al descargar el ZIP');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${codigoExpediente}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success('Expediente descargado correctamente');
+    } catch (error) {
+      console.error('Error descargando ZIP:', error);
+      toast.error('Error al descargar el expediente');
     }
   };
 
@@ -166,6 +196,14 @@ export default function ListaExpedientes() {
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         >
                           <Eye size={18} />
+                        </button>
+
+                        <button
+                          onClick={() => descargarZip(exp.id, exp.codigo_expediente)}
+                          className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          title="Descargar expediente completo"
+                        >
+                          <Download size={18} />
                         </button>
                       </div>
                     </td>
