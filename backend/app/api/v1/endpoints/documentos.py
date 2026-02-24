@@ -5,7 +5,7 @@ CRUD completo para documentos: facturas, guías, órdenes
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import desc, or_
+from sqlalchemy import desc, or_, and_
 from typing import List, Optional
 from datetime import date
 
@@ -32,28 +32,53 @@ def listar_documentos(
     estado: Optional[str] = None,
     tipo_documento_id: Optional[int] = None,
     empresa_id: Optional[int] = None,
-    fecha_desde: Optional[date] = None,
-    fecha_hasta: Optional[date] = None,
+    fecha_desde: Optional[date] = Query(None, description="Fecha desde"),
+    fecha_hasta: Optional[date] = Query(None, description="Fecha hasta"),
     buscar: Optional[str] = None,
+    numero_orden_compra: Optional[str] = Query(None, description="Buscar por número de OC"),
+    solo_hoy: bool = Query(True, description="Solo documentos subidos hoy"),
     db: Session = Depends(get_db)
 ):
     """
     Lista documentos con filtros opcionales
     
     **Filtros:**
+    - solo_hoy: True (por defecto) muestra solo documentos SUBIDOS hoy
+    - fecha_desde, fecha_hasta: Rango de fechas de SUBIDA (created_at)
     - estado: pendiente_validacion, validada, rechazada
-    - tipo_documento_id: 1 (FACTURA), 2 (GUIA_REMISION), 3 (ORDEN_VENTA)
+    - tipo_documento_id: 1 (FACTURA), 2 (GUIA_REMISION), 3 (ORDEN_COMPRA)
     - empresa_id: ID de la empresa emisora
-    - fecha_desde, fecha_hasta: Rango de fechas de emisión
     - buscar: Busca en número, RUC o razón social
+    - numero_orden_compra: Busca por número de orden de compra
     """
-    # Query con joinedload para incluir guía de remisión
+    from datetime import date as date_class, datetime, timedelta
+    
+    # Query con joinedload para incluir guía y orden de compra
     query = db.query(Documento).options(
-        joinedload(Documento.datos_guia_remision)
+        joinedload(Documento.datos_guia_remision),
+        joinedload(Documento.datos_orden_compra)
     ).filter(
         Documento.deleted_at.is_(None),
         Documento.es_version_actual == True
     )
+    
+    # Filtro de fecha por defecto: SOLO HOY (por created_at)
+    if solo_hoy and not fecha_desde and not fecha_hasta:
+        hoy = date_class.today()
+        inicio_dia = datetime.combine(hoy, datetime.min.time())
+        fin_dia = datetime.combine(hoy, datetime.max.time())
+        query = query.filter(
+            Documento.created_at >= inicio_dia,
+            Documento.created_at <= fin_dia
+        )
+    else:
+        # Rango de fechas personalizado (por created_at)
+        if fecha_desde:
+            inicio_fecha = datetime.combine(fecha_desde, datetime.min.time())
+            query = query.filter(Documento.created_at >= inicio_fecha)
+        if fecha_hasta:
+            fin_fecha = datetime.combine(fecha_hasta, datetime.max.time())
+            query = query.filter(Documento.created_at <= fin_fecha)
     
     # Aplicar filtros
     if estado:
@@ -65,12 +90,6 @@ def listar_documentos(
     if empresa_id:
         query = query.filter(Documento.empresa_id == empresa_id)
     
-    if fecha_desde:
-        query = query.filter(Documento.fecha_emision >= fecha_desde)
-    
-    if fecha_hasta:
-        query = query.filter(Documento.fecha_emision <= fecha_hasta)
-    
     if buscar:
         query = query.filter(
             or_(
@@ -78,6 +97,12 @@ def listar_documentos(
                 Documento.ruc_emisor.ilike(f"%{buscar}%"),
                 Documento.razon_social_emisor.ilike(f"%{buscar}%")
             )
+        )
+    
+    # Búsqueda por número de orden de compra
+    if numero_orden_compra:
+        query = query.filter(
+            Documento.orden_compra.ilike(f"%{numero_orden_compra}%")
         )
     
     # Ordenar por fecha de creación descendente
@@ -95,9 +120,10 @@ def obtener_documento(
     documento_id: int,
     db: Session = Depends(get_db)
 ):
-    """Obtiene un documento completo por su ID (incluye items y guía)"""
+    """Obtiene un documento completo por su ID (incluye items, guía y OC)"""
     documento = db.query(Documento).options(
-        joinedload(Documento.datos_guia_remision) 
+        joinedload(Documento.datos_guia_remision),
+        joinedload(Documento.datos_orden_compra)
     ).filter(   
         Documento.id == documento_id,
         Documento.deleted_at.is_(None)
@@ -123,7 +149,8 @@ def obtener_documento_por_uuid(
 ):
     """Obtiene un documento por su UUID"""
     documento = db.query(Documento).options(
-        joinedload(Documento.datos_guia_remision)
+        joinedload(Documento.datos_guia_remision),
+        joinedload(Documento.datos_orden_compra)
     ).filter(
         Documento.uuid == uuid,
         Documento.deleted_at.is_(None)
@@ -498,20 +525,47 @@ def actualizar_orden_compra(
 
 @router.get("/stats/resumen")
 def obtener_resumen_estadisticas(
+    fecha_desde: Optional[date] = Query(None),
+    fecha_hasta: Optional[date] = Query(None),
+    solo_hoy: bool = Query(True),
     db: Session = Depends(get_db)
 ):
-    """Obtiene estadísticas generales del sistema"""
+    """
+    Obtiene estadísticas generales del sistema
+    Por defecto: solo datos SUBIDOS hoy (created_at)
+    """
     from sqlalchemy import func, distinct
     from app.db.models import Expediente, NotaEntrega
+    from datetime import date as date_class, datetime
     
-    # Total documentos
-    total_documentos = db.query(func.count(Documento.id)).scalar()
+    # Filtro de fecha base para documentos (por created_at)
+    filtro_fecha = True
+    if solo_hoy and not fecha_desde and not fecha_hasta:
+        hoy = date_class.today()
+        inicio_dia = datetime.combine(hoy, datetime.min.time())
+        fin_dia = datetime.combine(hoy, datetime.max.time())
+        filtro_fecha = and_(
+            Documento.created_at >= inicio_dia,
+            Documento.created_at <= fin_dia
+        )
+    elif fecha_desde or fecha_hasta:
+        condiciones = []
+        if fecha_desde:
+            inicio_fecha = datetime.combine(fecha_desde, datetime.min.time())
+            condiciones.append(Documento.created_at >= inicio_fecha)
+        if fecha_hasta:
+            fin_fecha = datetime.combine(fecha_hasta, datetime.max.time())
+            condiciones.append(Documento.created_at <= fin_fecha)
+        filtro_fecha = and_(*condiciones) if condiciones else True
     
-    # Por estado
+    # Total documentos (con filtro de fecha)
+    total_documentos = db.query(func.count(Documento.id)).filter(filtro_fecha).scalar()
+    
+    # Por estado (con filtro de fecha)
     por_estado = db.query(
         Documento.estado,
         func.count(Documento.id)
-    ).group_by(Documento.estado).all()
+    ).filter(filtro_fecha).group_by(Documento.estado).all()
     
     estados_dict = {
         'pendientes': 0,
@@ -527,42 +581,82 @@ def obtener_resumen_estadisticas(
         elif estado == 'rechazada':
             estados_dict['rechazadas'] = count
     
-    # Totales monetarios
+    # Totales monetarios (con filtro de fecha)
     totales_pen = db.query(
         func.sum(Documento.total)
     ).filter(
         Documento.moneda == 'PEN',
-        Documento.estado == 'validada'
+        Documento.estado == 'validada',
+        filtro_fecha
     ).scalar() or 0
     
     totales_usd = db.query(
         func.sum(Documento.total)
     ).filter(
         Documento.moneda == 'USD',
-        Documento.estado == 'validada'
+        Documento.estado == 'validada',
+        filtro_fecha
     ).scalar() or 0
     
-    # Total proveedores (empresas únicas)
+    # Total proveedores (empresas únicas - con filtro de fecha)
     total_empresas = db.query(
         func.count(distinct(Documento.empresa_id))
-    ).scalar() or 0
+    ).filter(filtro_fecha).scalar() or 0
     
-    # Confianza OCR promedio
+    # Confianza OCR promedio (con filtro de fecha)
     confianza_promedio = db.query(
         func.avg(Documento.confianza_ocr_promedio)
-    ).scalar() or 0
+    ).filter(filtro_fecha).scalar() or 0
     
-    # Expedientes
-    total_expedientes = db.query(func.count(Expediente.id)).scalar() or 0
+    # Filtro de fecha para expedientes (por created_at)
+    filtro_fecha_exp = True
+    if solo_hoy and not fecha_desde and not fecha_hasta:
+        hoy = date_class.today()
+        inicio_dia = datetime.combine(hoy, datetime.min.time())
+        fin_dia = datetime.combine(hoy, datetime.max.time())
+        filtro_fecha_exp = and_(
+            Expediente.created_at >= inicio_dia,
+            Expediente.created_at <= fin_dia
+        )
+    elif fecha_desde or fecha_hasta:
+        condiciones_exp = []
+        if fecha_desde:
+            inicio_fecha = datetime.combine(fecha_desde, datetime.min.time())
+            condiciones_exp.append(Expediente.created_at >= inicio_fecha)
+        if fecha_hasta:
+            fin_fecha = datetime.combine(fecha_hasta, datetime.max.time())
+            condiciones_exp.append(Expediente.created_at <= fin_fecha)
+        filtro_fecha_exp = and_(*condiciones_exp) if condiciones_exp else True
+    
+    total_expedientes = db.query(func.count(Expediente.id)).filter(filtro_fecha_exp).scalar() or 0
     expedientes_completos = db.query(
         func.count(Expediente.id)
-    ).filter(Expediente.estado == 'completo').scalar() or 0
+    ).filter(Expediente.estado == 'completo', filtro_fecha_exp).scalar() or 0
     expedientes_incompletos = db.query(
         func.count(Expediente.id)
-    ).filter(Expediente.estado.in_(['en_proceso', 'incompleto'])).scalar() or 0
+    ).filter(Expediente.estado.in_(['en_proceso', 'incompleto']), filtro_fecha_exp).scalar() or 0
     
-    # Notas de entrega
-    total_notas = db.query(func.count(NotaEntrega.id)).scalar() or 0
+    # Filtro de fecha para notas de entrega (por created_at)
+    filtro_fecha_notas = True
+    if solo_hoy and not fecha_desde and not fecha_hasta:
+        hoy = date_class.today()
+        inicio_dia = datetime.combine(hoy, datetime.min.time())
+        fin_dia = datetime.combine(hoy, datetime.max.time())
+        filtro_fecha_notas = and_(
+            NotaEntrega.created_at >= inicio_dia,
+            NotaEntrega.created_at <= fin_dia
+        )
+    elif fecha_desde or fecha_hasta:
+        condiciones_notas = []
+        if fecha_desde:
+            inicio_fecha = datetime.combine(fecha_desde, datetime.min.time())
+            condiciones_notas.append(NotaEntrega.created_at >= inicio_fecha)
+        if fecha_hasta:
+            fin_fecha = datetime.combine(fecha_hasta, datetime.max.time())
+            condiciones_notas.append(NotaEntrega.created_at <= fin_fecha)
+        filtro_fecha_notas = and_(*condiciones_notas) if condiciones_notas else True
+    
+    total_notas = db.query(func.count(NotaEntrega.id)).filter(filtro_fecha_notas).scalar() or 0
     
     return {
         "total_documentos": total_documentos,
@@ -578,5 +672,10 @@ def obtener_resumen_estadisticas(
             "completos": expedientes_completos,
             "incompletos": expedientes_incompletos
         },
-        "total_notas": total_notas
+        "total_notas": total_notas,
+        "filtros_aplicados": {
+            "solo_hoy": solo_hoy,
+            "fecha_desde": str(fecha_desde) if fecha_desde else None,
+            "fecha_hasta": str(fecha_hasta) if fecha_hasta else None
+        }
     }

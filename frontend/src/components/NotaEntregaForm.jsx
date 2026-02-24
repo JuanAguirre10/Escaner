@@ -100,7 +100,10 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
         guia_numero: guia?.numero_documento || ''
       });
 
-      if (onSuccess) onSuccess();
+      if (onSuccess) {
+        // Recargar expediente para mostrar la nueva nota
+        onSuccess(expediente.id);
+      }
     } catch (error) {
       console.error('Error creando nota:', error);
       toast.error(error.response?.data?.detail || 'Error al crear la nota de entrega');

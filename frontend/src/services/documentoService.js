@@ -5,7 +5,19 @@ export const documentoService = {
    * Obtiene todos los documentos con filtros
    */
   async listar(params = {}) {
-    const response = await api.get('/documentos/', { params });
+    const queryParams = new URLSearchParams();
+    
+    // Agregar todos los parámetros
+    Object.keys(params).forEach(key => {
+      if (params[key] !== null && params[key] !== undefined && params[key] !== '') {
+        queryParams.append(key, params[key]);
+      }
+    });
+    
+    const queryString = queryParams.toString();
+    const url = queryString ? `/documentos?${queryString}` : '/documentos';
+    
+    const response = await api.get(url);
     return response.data;
   },
 
@@ -61,12 +73,13 @@ export const documentoService = {
 
   /**
    * Obtiene estadísticas generales
+   * @param {string} queryParams - Query string con parámetros opcionales
    */
-  /**
-   * Obtiene estadísticas generales
-   */
-  async estadisticas() {
-    const response = await api.get('/documentos/stats/resumen');
+  async estadisticas(queryParams = '') {
+    const url = queryParams 
+      ? `/documentos/stats/resumen?${queryParams}`
+      : '/documentos/stats/resumen';
+    const response = await api.get(url);
     return response.data;
   },
 
@@ -83,24 +96,6 @@ export const documentoService = {
    */
   async actualizarItem(itemId, data) {
     const response = await api.put(`/documentos/items/${itemId}`, data);
-    return response.data;
-  },
-
-  /**
-   * Valida un documento
-   */
-  async validar(id) {
-    const response = await api.post(`/documentos/${id}/validar`);
-    return response.data;
-  },
-
-  /**
-   * Rechaza un documento
-   */
-  async rechazar(id, motivo) {
-    const response = await api.post(`/documentos/${id}/rechazar`, null, {
-      params: { motivo }
-    });
     return response.data;
   },
   
@@ -126,13 +121,12 @@ export const documentoService = {
   async listarPendientes() {
     const response = await api.get('/documentos/', {
       params: {
-        estado: 'pendiente_validacion'
+        estado: 'pendiente_validacion',
+        solo_hoy: false // Mostrar todos los pendientes, no solo de hoy
       }
     });
     return response.data;
   },
-
-  
 };
 
 // Alias para compatibilidad con código existente

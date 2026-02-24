@@ -1,29 +1,50 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Package, Eye, Calendar, CheckCircle, Download } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Package, Eye, Calendar, Download, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, Button, Badge, Loading } from '../components/common';
 import { expedienteService } from '../services';
 import { formatDate } from '../utils/formatters';
+import FiltrosFecha from '../components/FiltrosFecha';
 
 export default function ListaExpedientes() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   
   const [expedientes, setExpedientes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filtroEstado, setFiltroEstado] = useState('completo');
+  
+  // Filtros
+  const [soloHoy, setSoloHoy] = useState(true);
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
+  const [buscar, setBuscar] = useState('');
+  const [soloIncompletos, setSoloIncompletos] = useState(
+    searchParams.get('solo_incompletos') === 'true' || false
+  );
+  const [filtroEstado, setFiltroEstado] = useState('');
 
   useEffect(() => {
     cargarExpedientes();
-  }, [filtroEstado]);
+  }, [soloHoy, fechaDesde, fechaHasta, buscar, soloIncompletos, filtroEstado]);
 
   const cargarExpedientes = async () => {
     try {
       setLoading(true);
-      const params = {};
-      if (filtroEstado) {
-        params.estado = filtroEstado;
+      
+      const params = {
+        solo_hoy: soloHoy,
+        solo_incompletos: soloIncompletos,
+      };
+      
+      if (!soloHoy) {
+        if (fechaDesde) params.fecha_desde = fechaDesde;
+        if (fechaHasta) params.fecha_hasta = fechaHasta;
       }
+      
+      if (buscar) params.buscar = buscar;
+      if (filtroEstado) params.estado = filtroEstado;
+      
       const data = await expedienteService.listar(params);
       setExpedientes(data);
     } catch (error) {
@@ -32,6 +53,15 @@ export default function ListaExpedientes() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLimpiarFiltros = () => {
+    setSoloHoy(true);
+    setFechaDesde('');
+    setFechaHasta('');
+    setBuscar('');
+    setSoloIncompletos(false);
+    setFiltroEstado('');
   };
 
   const getEstadoColor = (estado) => {
@@ -63,7 +93,7 @@ export default function ListaExpedientes() {
   const descargarZip = async (expedienteId, codigoExpediente) => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/v1/expedientes/${expedienteId}/descargar-zip`,
+        `http://localhost:8001/api/v1/expedientes/${expedienteId}/descargar-zip`,
         {
           method: 'GET',
         }
@@ -100,43 +130,79 @@ export default function ListaExpedientes() {
         </div>
       </div>
 
-      {/* Filtros */}
+      {/* Filtros de Fecha */}
+      <FiltrosFecha
+        soloHoy={soloHoy}
+        fechaDesde={fechaDesde}
+        fechaHasta={fechaHasta}
+        onSoloHoyChange={setSoloHoy}
+        onFechaDesdeChange={setFechaDesde}
+        onFechaHastaChange={setFechaHasta}
+        onLimpiar={handleLimpiarFiltros}
+      />
+
+      {/* Filtros Adicionales */}
       <Card>
-        <div className="flex items-center gap-4">
-          <label className="text-sm font-medium text-gray-700">Filtrar por estado:</label>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setFiltroEstado('completo')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                filtroEstado === 'completo'
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Búsqueda */}
+          <div className="flex flex-col">
+            <label className="text-sm font-medium text-gray-700 mb-1">
+              Buscar por Código o N° OC
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={buscar}
+                onChange={(e) => setBuscar(e.target.value)}
+                placeholder="Código o número de OC..."
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          {/* Filtro por Estado */}
+          <div className="flex flex-col">
+            <label className="text-sm font-medium text-gray-700 mb-1">
+              Estado
+            </label>
+            <select
+              value={filtroEstado}
+              onChange={(e) => setFiltroEstado(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              Completos
-            </button>
-            <button
-              onClick={() => setFiltroEstado('en_proceso')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                filtroEstado === 'en_proceso'
-                  ? 'bg-yellow-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              En Proceso
-            </button>
-            <button
-              onClick={() => setFiltroEstado('')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                filtroEstado === ''
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Todos
-            </button>
+              <option value="">Todos los estados</option>
+              <option value="completo">Completo</option>
+              <option value="en_proceso">En Proceso</option>
+              <option value="incompleto">Incompleto</option>
+            </select>
+          </div>
+
+          {/* Toggle Solo Incompletos */}
+          <div className="flex flex-col justify-end">
+            <div className="flex items-center gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+              <input
+                type="checkbox"
+                id="soloIncompletos"
+                checked={soloIncompletos}
+                onChange={(e) => setSoloIncompletos(e.target.checked)}
+                className="w-4 h-4 text-orange-600 rounded focus:ring-2 focus:ring-orange-500"
+              />
+              <label htmlFor="soloIncompletos" className="text-sm font-medium text-orange-700 cursor-pointer">
+                Solo expedientes incompletos
+              </label>
+            </div>
           </div>
         </div>
+
+        {/* Indicador de filtro activo */}
+        {soloIncompletos && (
+          <div className="mt-3 p-2 bg-orange-50 border border-orange-200 rounded-lg">
+            <p className="text-sm text-orange-800">
+              📦 Mostrando solo expedientes <strong>incompletos</strong> (en proceso o incompletos)
+            </p>
+          </div>
+        )}
       </Card>
 
       {/* Lista */}
@@ -148,7 +214,12 @@ export default function ListaExpedientes() {
             <div className="text-gray-400 text-5xl mb-4">📦</div>
             <p className="text-gray-500 font-medium">No hay expedientes</p>
             <p className="text-sm text-gray-400 mt-2">
-              Los expedientes completos aparecerán aquí
+              {soloHoy 
+                ? 'No hay expedientes para hoy. Desactiva "Solo hoy" para ver más resultados.'
+                : soloIncompletos
+                  ? 'No hay expedientes incompletos'
+                  : 'Los expedientes aparecerán aquí'
+              }
             </p>
           </div>
         ) : (
@@ -192,8 +263,12 @@ export default function ListaExpedientes() {
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
                         <button
-                          onClick={() => navigate(`/expedientes/${exp.id}`)}
+                          onClick={() => {
+                            console.log('Navegando a expediente:', exp.id);
+                            navigate(`/expedientes/${exp.id}`);
+                          }}
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Ver detalles"
                         >
                           <Eye size={18} />
                         </button>
@@ -217,7 +292,7 @@ export default function ListaExpedientes() {
 
       {/* Estadísticas */}
       {!loading && expedientes.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <div className="text-center">
               <p className="text-2xl font-bold text-gray-900">{expedientes.length}</p>
@@ -240,6 +315,15 @@ export default function ListaExpedientes() {
                 {expedientes.filter(e => e.estado === 'en_proceso').length}
               </p>
               <p className="text-sm text-gray-600">En Proceso</p>
+            </div>
+          </Card>
+
+          <Card>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-red-600">
+                {expedientes.filter(e => e.estado === 'incompleto').length}
+              </p>
+              <p className="text-sm text-gray-600">Incompletos</p>
             </div>
           </Card>
         </div>

@@ -2,10 +2,22 @@ import api from './api';
 
 export const expedienteService = {
   /**
-   * Lista todos los expedientes
+   * Lista todos los expedientes con filtros
    */
   async listar(params = {}) {
-    const response = await api.get('/expedientes/', { params });
+    const queryParams = new URLSearchParams();
+    
+    // Agregar todos los parámetros
+    Object.keys(params).forEach(key => {
+      if (params[key] !== null && params[key] !== undefined && params[key] !== '') {
+        queryParams.append(key, params[key]);
+      }
+    });
+    
+    const queryString = queryParams.toString();
+    const url = queryString ? `/expedientes?${queryString}` : '/expedientes';
+    
+    const response = await api.get(url);
     return response.data;
   },
 
@@ -14,6 +26,22 @@ export const expedienteService = {
    */
   async obtener(id) {
     const response = await api.get(`/expedientes/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Obtiene un expediente por código
+   */
+  async obtenerPorCodigo(codigo) {
+    const response = await api.get(`/expedientes/codigo/${codigo}`);
+    return response.data;
+  },
+
+  /**
+   * Obtiene un expediente por número de orden
+   */
+  async obtenerPorOrden(numeroOrden) {
+    const response = await api.get(`/expedientes/orden/${numeroOrden}`);
     return response.data;
   },
 
@@ -36,28 +64,70 @@ export const expedienteService = {
   },
 
   /**
+   * Crea un expediente
+   */
+  async crear(data) {
+    const response = await api.post('/expedientes/', data);
+    return response.data;
+  },
+
+  /**
+   * Actualiza un expediente
+   */
+  async actualizar(id, data) {
+    const response = await api.put(`/expedientes/${id}`, data);
+    return response.data;
+  },
+
+  /**
    * Actualiza expediente desde OC
    */
-  async actualizarDesdeOC(expedienteId, numeroOrden) {
-    const response = await api.put(`/expedientes/${expedienteId}/actualizar-desde-oc`, null, {
+  async actualizarDesdeOC(id, numeroOrden) {
+    const response = await api.put(`/expedientes/${id}/actualizar-desde-oc`, null, {
       params: { numero_orden: numeroOrden }
     });
     return response.data;
   },
 
   /**
-   * Verifica completitud del expediente
-   */
-  async verificarCompletitud(expedienteId) {
-    const response = await api.post(`/expedientes/${expedienteId}/verificar-completitud`);
-    return response.data;
-  },
-
-  /**
-   * Asocia documento a expediente
+   * Asocia un documento a un expediente
    */
   async asociarDocumento(expedienteId, documentoId) {
     const response = await api.post(`/expedientes/${expedienteId}/asociar-documento/${documentoId}`);
     return response.data;
   },
+
+  /**
+   * Verifica y actualiza estado de completitud
+   */
+  async verificarCompletitud(id) {
+    const response = await api.post(`/expedientes/${id}/verificar-completitud`);
+    return response.data;
+  },
+
+  /**
+   * Obtiene el estado de un expediente
+   */
+  async obtenerEstado(id) {
+    const response = await api.get(`/expedientes/${id}/estado`);
+    return response.data;
+  },
+
+  /**
+   * Elimina un expediente
+   */
+  async eliminar(id) {
+    const response = await api.delete(`/expedientes/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Descarga un expediente como ZIP
+   */
+  async descargarZip(id) {
+    const response = await api.get(`/expedientes/${id}/descargar-zip`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  }
 };

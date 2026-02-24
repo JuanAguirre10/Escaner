@@ -3,8 +3,9 @@ Endpoints para Expedientes
 Gestión de expedientes documentales
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import desc, or_, and_
 from typing import List, Optional
 from datetime import date
 
@@ -24,20 +25,64 @@ router = APIRouter()
 def listar_expedientes(
     skip: int = 0,
     limit: int = 100,
-    estado: Optional[str] = None,
     empresa_id: Optional[int] = None,
+    estado: Optional[str] = Query(None, description="Estado del expediente"),
+    fecha_desde: Optional[date] = Query(None, description="Fecha desde"),
+    fecha_hasta: Optional[date] = Query(None, description="Fecha hasta"),
+    solo_hoy: bool = Query(True, description="Solo expedientes creados hoy"),
+    solo_incompletos: bool = Query(False, description="Solo expedientes incompletos"),
+    buscar: Optional[str] = Query(None, description="Buscar por código o número OC"),
     db: Session = Depends(get_db)
 ):
-    """Lista todos los expedientes"""
+    """
+    Lista expedientes con filtros
+    
+    **Por defecto:** Muestra solo expedientes CREADOS hoy
+    **solo_incompletos:** Muestra solo expedientes en_proceso o incompleto
+    """
+    from datetime import date as date_class, datetime
+    
+    # Query sin filtro de deleted_at porque Expediente no tiene soft delete
     query = db.query(Expediente)
     
-    if estado:
+    # Filtro de fecha por defecto: SOLO HOY (por created_at)
+    if solo_hoy and not fecha_desde and not fecha_hasta:
+        hoy = date_class.today()
+        inicio_dia = datetime.combine(hoy, datetime.min.time())
+        fin_dia = datetime.combine(hoy, datetime.max.time())
+        query = query.filter(
+            Expediente.created_at >= inicio_dia,
+            Expediente.created_at <= fin_dia
+        )
+    else:
+        # Rango de fechas personalizado (por created_at)
+        if fecha_desde:
+            inicio_fecha = datetime.combine(fecha_desde, datetime.min.time())
+            query = query.filter(Expediente.created_at >= inicio_fecha)
+        if fecha_hasta:
+            fin_fecha = datetime.combine(fecha_hasta, datetime.max.time())
+            query = query.filter(Expediente.created_at <= fin_fecha)
+    
+    # Filtro de expedientes incompletos
+    if solo_incompletos:
+        query = query.filter(Expediente.estado.in_(['en_proceso', 'incompleto']))
+    elif estado:
         query = query.filter(Expediente.estado == estado)
     
     if empresa_id:
         query = query.filter(Expediente.empresa_id == empresa_id)
     
-    expedientes = query.order_by(Expediente.created_at.desc()).offset(skip).limit(limit).all()
+    # Búsqueda por código o número de OC
+    if buscar:
+        query = query.filter(
+            or_(
+                Expediente.codigo_expediente.ilike(f"%{buscar}%"),
+                Expediente.numero_orden_compra.ilike(f"%{buscar}%")
+            )
+        )
+    
+    expedientes = query.order_by(desc(Expediente.created_at)).offset(skip).limit(limit).all()
+    
     return expedientes
 
 

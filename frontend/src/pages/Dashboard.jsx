@@ -4,28 +4,55 @@ import { FileText, Clock, CheckCircle, AlertCircle, TrendingUp, Building2, Packa
 import { Card, Loading, Badge } from '../components/common';
 import { documentoService } from '../services';
 import { formatMoney, formatConfianza } from '../utils/formatters';
+import FiltrosFecha from '../components/FiltrosFecha';
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Estados de filtros
+  const [soloHoy, setSoloHoy] = useState(true);
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
 
   useEffect(() => {
     cargarEstadisticas();
-  }, []);
+  }, [soloHoy, fechaDesde, fechaHasta]);
 
   const cargarEstadisticas = async () => {
     try {
       setLoading(true);
-      const data = await documentoService.estadisticas();
+      setError(null);
+      
+      // Construir query params
+      const params = new URLSearchParams({
+        solo_hoy: soloHoy
+      });
+      
+      if (!soloHoy) {
+        if (fechaDesde) params.append('fecha_desde', fechaDesde);
+        if (fechaHasta) params.append('fecha_hasta', fechaHasta);
+      }
+      
+      const data = await documentoService.estadisticas(params.toString());
       setStats(data);
     } catch (error) {
       console.error('Error cargando estadísticas:', error);
+      setError('Error al cargar las estadísticas');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleLimpiarFiltros = () => {
+    setSoloHoy(true);
+    setFechaDesde('');
+    setFechaHasta('');
+  };
+
   if (loading) return <Loading fullScreen />;
+  if (error) return <div className="p-6 text-center text-red-600">{error}</div>;
 
   return (
     <div className="space-y-6">
@@ -34,6 +61,17 @@ export default function Dashboard() {
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-gray-600 mt-1">Resumen general del sistema SUPERVAN</p>
       </div>
+
+      {/* Filtros de Fecha */}
+      <FiltrosFecha
+        soloHoy={soloHoy}
+        fechaDesde={fechaDesde}
+        fechaHasta={fechaHasta}
+        onSoloHoyChange={setSoloHoy}
+        onFechaDesdeChange={setFechaDesde}
+        onFechaHastaChange={setFechaHasta}
+        onLimpiar={handleLimpiarFiltros}
+      />
 
       {/* Stats Cards - Fila 1 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -123,7 +161,7 @@ export default function Dashboard() {
         </Link>
 
         {/* Expedientes Incompletos */}
-        <Link to="/expedientes?estado=en_proceso">
+        <Link to="/expedientes?solo_incompletos=true">
           <Card className="p-6 hover:shadow-md transition-shadow cursor-pointer">
             <div className="flex items-start justify-between">
               <div>

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, Trash2, Filter } from 'lucide-react';
+import { Eye, Trash2, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, Button, Badge, Loading, Input } from '../components/common';
 import { documentoService, tipoDocumentoService, notaEntregaService } from '../services';
 import { formatDate, formatMoney, getEstadoColor, formatEstado } from '../utils/formatters';
 import { TIPOS_DOCUMENTO } from '../utils/constants';
+import FiltrosFecha from '../components/FiltrosFecha';
 
 export default function ListaDocumentos() {
   const [documentos, setDocumentos] = useState([]);
@@ -13,10 +14,14 @@ export default function ListaDocumentos() {
   const [tiposDocumento, setTiposDocumento] = useState([]);
   const [tipoSeleccionado, setTipoSeleccionado] = useState(TIPOS_DOCUMENTO.ORDEN_COMPRA);
   const [loading, setLoading] = useState(true);
-  const [filtros, setFiltros] = useState({
-    buscar: '',
-    estado: '',
-  });
+  
+  // Filtros
+  const [soloHoy, setSoloHoy] = useState(true);
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
+  const [busquedaOC, setBusquedaOC] = useState('');
+  const [buscarGeneral, setBuscarGeneral] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('');
 
   useEffect(() => {
     cargarTiposDocumento();
@@ -24,7 +29,7 @@ export default function ListaDocumentos() {
 
   useEffect(() => {
     cargarDocumentos();
-  }, [tipoSeleccionado, filtros]);
+  }, [tipoSeleccionado, soloHoy, fechaDesde, fechaHasta, busquedaOC, buscarGeneral, filtroEstado]);
 
   const cargarTiposDocumento = async () => {
     try {
@@ -48,10 +53,17 @@ export default function ListaDocumentos() {
         // Cargar documentos normales
         const params = {
           tipo_documento_id: tipoSeleccionado,
+          solo_hoy: soloHoy,
         };
         
-        if (filtros.buscar) params.buscar = filtros.buscar;
-        if (filtros.estado) params.estado = filtros.estado;
+        if (!soloHoy) {
+          if (fechaDesde) params.fecha_desde = fechaDesde;
+          if (fechaHasta) params.fecha_hasta = fechaHasta;
+        }
+        
+        if (buscarGeneral) params.buscar = buscarGeneral;
+        if (filtroEstado) params.estado = filtroEstado;
+        if (busquedaOC) params.numero_orden_compra = busquedaOC;
         
         const data = await documentoService.listar(params);
         setDocumentos(data);
@@ -63,6 +75,15 @@ export default function ListaDocumentos() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLimpiarFiltros = () => {
+    setSoloHoy(true);
+    setFechaDesde('');
+    setFechaHasta('');
+    setBusquedaOC('');
+    setBuscarGeneral('');
+    setFiltroEstado('');
   };
 
   const handleEliminar = async (id) => {
@@ -157,34 +178,75 @@ export default function ListaDocumentos() {
 
         {/* Filtros - Solo para documentos, no para notas */}
         {tipoSeleccionado !== 4 && (
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
-            <div className="flex-1">
-              <Input
-                placeholder="Buscar por número o razón social..."
-                value={filtros.buscar}
-                onChange={(e) => setFiltros(prev => ({ ...prev, buscar: e.target.value }))}
-              />
-            </div>
+          <>
+            {/* Filtros de Fecha */}
+            <FiltrosFecha
+              soloHoy={soloHoy}
+              fechaDesde={fechaDesde}
+              fechaHasta={fechaHasta}
+              onSoloHoyChange={setSoloHoy}
+              onFechaDesdeChange={setFechaDesde}
+              onFechaHastaChange={setFechaHasta}
+              onLimpiar={handleLimpiarFiltros}
+            />
 
-            <div className="w-full md:w-64">
-              <select
-                value={filtros.estado}
-                onChange={(e) => setFiltros(prev => ({ ...prev, estado: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Todos los estados</option>
-                <option value="pendiente_validacion">Pendiente</option>
-                <option value="validada">Validada</option>
-                <option value="rechazada">Rechazada</option>
-                <option value="duplicada">Duplicada</option>
-              </select>
-            </div>
+            {/* Filtros Adicionales */}
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Búsqueda General */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium text-gray-700 mb-1">
+                    Buscar
+                  </label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={buscarGeneral}
+                      onChange={(e) => setBuscarGeneral(e.target.value)}
+                      placeholder="Número, RUC o razón social..."
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
 
-            <Button variant="primary" onClick={cargarDocumentos}>
-              <Filter size={20} />
-              Filtrar
-            </Button>
-          </div>
+                {/* Búsqueda por OC */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium text-gray-700 mb-1">
+                    Número de Orden de Compra
+                  </label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={busquedaOC}
+                      onChange={(e) => setBusquedaOC(e.target.value)}
+                      placeholder="Número de OC..."
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                {/* Filtro por Estado */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium text-gray-700 mb-1">
+                    Estado
+                  </label>
+                  <select
+                    value={filtroEstado}
+                    onChange={(e) => setFiltroEstado(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Todos los estados</option>
+                    <option value="pendiente_validacion">Pendiente Validación</option>
+                    <option value="validada">Validada</option>
+                    <option value="rechazada">Rechazada</option>
+                    <option value="duplicada">Duplicada</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </>
         )}
 
         {/* Tabla */}
@@ -240,10 +302,10 @@ export default function ListaDocumentos() {
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-2">
                           <Link to={`/notas-entrega/${nota.id}`}>
-                          <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                            <Eye size={18} />
-                          </button>
-                        </Link>
+                            <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                              <Eye size={18} />
+                            </button>
+                          </Link>
                           <button 
                             onClick={() => handleEliminarNota(nota.id)}
                             className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -265,7 +327,10 @@ export default function ListaDocumentos() {
               No hay {tipoActual?.nombre.toLowerCase()} para mostrar
             </p>
             <p className="text-sm text-gray-400 mt-2">
-              Sube documentos desde la página "Subir Documentos"
+              {soloHoy 
+                ? 'No hay documentos para hoy. Desactiva "Solo hoy" para ver más resultados.'
+                : 'Sube documentos desde la página "Subir Documentos"'
+              }
             </p>
           </div>
         ) : (

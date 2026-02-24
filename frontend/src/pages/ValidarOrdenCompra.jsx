@@ -4,6 +4,7 @@ import { ArrowLeft, Save, X, CheckCircle, AlertCircle, Package } from 'lucide-re
 import toast from 'react-hot-toast';
 import { Card, Button, Input, Loading } from '../components/common';
 import { documentoService } from '../services';
+import { formatDate, getEstadoColor, formatEstado } from '../utils/formatters';
 
 export default function ValidarOrdenCompra() {
   const { id } = useParams();
@@ -13,8 +14,29 @@ export default function ValidarOrdenCompra() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [documento, setDocumento] = useState(null);
-  const [ordenCompra, setOrdenCompra] = useState(null);
   const [items, setItems] = useState([]);
+  
+  // 🆕 Estado formData definido correctamente
+  const [formData, setFormData] = useState({
+    numero_documento: '',
+    serie: '',
+    fecha_emision: '',
+    fecha_entrega: '',
+    ruc_emisor: '',
+    razon_social_emisor: '',
+    direccion_emisor: '',
+    telefono_emisor: '',
+    ruc_cliente: '',
+    razon_social_cliente: '',
+    direccion_cliente: '',
+    direccion_entrega: '',
+    modo_pago: '',
+    moneda: 'PEN',
+    subtotal: 0,
+    igv: 0,
+    total: 0,
+    observaciones: ''
+  });
 
   useEffect(() => {
     cargarDatos();
@@ -27,8 +49,29 @@ export default function ValidarOrdenCompra() {
       setDocumento(doc);
 
       // Cargar datos específicos de orden de compra
-      const ocData = await documentoService.obtenerOrdenCompra(id);
-      setOrdenCompra(ocData);
+      const ocData = doc.datos_orden_compra || await documentoService.obtenerOrdenCompra(id);
+
+      // 🆕 Inicializar formData con los datos cargados
+      setFormData({
+        numero_documento: doc.numero_documento || '',
+        serie: doc.serie || '',
+        fecha_emision: doc.fecha_emision?.split('T')[0] || '',
+        fecha_entrega: ocData?.fecha_entrega?.split('T')[0] || '',
+        ruc_emisor: doc.ruc_emisor || '',
+        razon_social_emisor: doc.razon_social_emisor || '',
+        direccion_emisor: doc.direccion_emisor || '',
+        telefono_emisor: doc.telefono_emisor || '',
+        ruc_cliente: doc.ruc_cliente || '',
+        razon_social_cliente: doc.razon_social_cliente || '',
+        direccion_cliente: doc.direccion_cliente || '',
+        direccion_entrega: ocData?.direccion_entrega || '',
+        modo_pago: ocData?.modo_pago || '',
+        moneda: doc.moneda || 'PEN',
+        subtotal: doc.subtotal || 0,
+        igv: doc.igv || 0,
+        total: doc.total || 0,
+        observaciones: doc.observaciones || ''
+      });
 
       // Cargar items
       const itemsData = await documentoService.obtenerItems(id);
@@ -39,6 +82,16 @@ export default function ValidarOrdenCompra() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleItemChange = (index, field, value) => {
+    const newItems = [...items];
+    newItems[index][field] = value;
+    setItems(newItems);
   };
 
   const handleSubmit = async (e) => {
@@ -88,12 +141,16 @@ export default function ValidarOrdenCompra() {
       toast.success('Orden de compra actualizada correctamente');
       
       // Volver a Upload con contexto para seguir subiendo
-      navigate('/upload', {
-        state: {
-          empresaId: documento.empresa_id,
-          expedienteId: documento.expediente_id
-        }
-      });
+      if (location.state?.empresaId && location.state?.expedienteId) {
+        navigate('/upload', {
+          state: {
+            empresaId: location.state.empresaId,
+            expedienteId: location.state.expedienteId
+          }
+        });
+      } else {
+        navigate('/facturas');
+      }
     } catch (error) {
       console.error('Error guardando:', error);
       toast.error(error.response?.data?.detail || 'Error al guardar los cambios');
@@ -109,12 +166,16 @@ export default function ValidarOrdenCompra() {
       toast.success('✅ Orden de compra validada correctamente');
       
       // Volver a Upload con contexto para seguir subiendo
-      navigate('/upload', {
-        state: {
-          empresaId: documento.empresa_id,
-          expedienteId: documento.expediente_id
-        }
-      });
+      if (location.state?.empresaId && location.state?.expedienteId) {
+        navigate('/upload', {
+          state: {
+            empresaId: location.state.empresaId,
+            expedienteId: location.state.expedienteId
+          }
+        });
+      } else {
+        navigate('/facturas');
+      }
     } catch (error) {
       console.error('Error validando:', error);
       toast.error(error.response?.data?.detail || 'Error al validar la orden de compra');
@@ -126,8 +187,8 @@ export default function ValidarOrdenCompra() {
   const handleRechazar = async () => {
     const motivo = prompt('Ingresa el motivo del rechazo:');
     
-    if (!motivo) {
-      toast.error('Debes proporcionar un motivo para rechazar');
+    if (!motivo || motivo.trim().length < 10) {
+      toast.error('Debes proporcionar un motivo válido (mínimo 10 caracteres)');
       return;
     }
 
@@ -137,12 +198,16 @@ export default function ValidarOrdenCompra() {
       toast.success('Orden de compra rechazada');
       
       // Volver a Upload con contexto
-      navigate('/upload', {
-        state: {
-          empresaId: documento.empresa_id,
-          expedienteId: documento.expediente_id
-        }
-      });
+      if (location.state?.empresaId && location.state?.expedienteId) {
+        navigate('/upload', {
+          state: {
+            empresaId: location.state.empresaId,
+            expedienteId: location.state.expedienteId
+          }
+        });
+      } else {
+        navigate('/facturas');
+      }
     } catch (error) {
       console.error('Error rechazando:', error);
       toast.error(error.response?.data?.detail || 'Error al rechazar la orden de compra');
@@ -160,7 +225,7 @@ export default function ValidarOrdenCompra() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate('/documentos')}
+            onClick={() => navigate(-1)}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft size={24} />
@@ -173,16 +238,15 @@ export default function ValidarOrdenCompra() {
           </div>
         </div>
 
+        {/* 🆕 Badge de estado correcto */}
         <div className={`px-4 py-2 rounded-lg font-medium ${
-          documento.estado === 'validado' 
+          documento.estado === 'validada' 
             ? 'bg-green-100 text-green-800'
-            : documento.estado === 'rechazado'
+            : documento.estado === 'rechazada'
             ? 'bg-red-100 text-red-800'
             : 'bg-yellow-100 text-yellow-800'
         }`}>
-          {documento.estado === 'validado' ? 'Validado' : 
-           documento.estado === 'rechazado' ? 'Rechazado' : 
-           'Pendiente de Validación'}
+          {formatEstado(documento.estado)}
         </div>
       </div>
 
@@ -192,37 +256,37 @@ export default function ValidarOrdenCompra() {
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="Número de Orden de Compra"
-              value={documento.numero_documento || ''}
-              onChange={(e) => setDocumento({...documento, numero_documento: e.target.value})}
+              value={formData.numero_documento}
+              onChange={(e) => handleChange('numero_documento', e.target.value)}
               required
             />
             <Input
               label="Serie"
-              value={documento.serie || ''}
-              onChange={(e) => setDocumento({...documento, serie: e.target.value})}
+              value={formData.serie}
+              onChange={(e) => handleChange('serie', e.target.value)}
             />
             <Input
               label="Fecha de Emisión"
               type="date"
-              value={documento.fecha_emision || ''}
-              onChange={(e) => setDocumento({...documento, fecha_emision: e.target.value})}
+              value={formData.fecha_emision}
+              onChange={(e) => handleChange('fecha_emision', e.target.value)}
               required
             />
             <Input
               label="Fecha de Entrega"
               type="date"
-              value={ordenCompra?.fecha_entrega || ''}
-              onChange={(e) => setOrdenCompra({...ordenCompra, fecha_entrega: e.target.value})}
+              value={formData.fecha_entrega}
+              onChange={(e) => handleChange('fecha_entrega', e.target.value)}
             />
             <Input
               label="Moneda"
-              value={documento.moneda || ''}
-              onChange={(e) => setDocumento({...documento, moneda: e.target.value})}
+              value={formData.moneda}
+              onChange={(e) => handleChange('moneda', e.target.value)}
             />
             <Input
               label="Modo de Pago"
-              value={ordenCompra?.modo_pago || ''}
-              onChange={(e) => setOrdenCompra({...ordenCompra, modo_pago: e.target.value})}
+              value={formData.modo_pago}
+              onChange={(e) => handleChange('modo_pago', e.target.value)}
               placeholder="Ej: FACTURA 07 DIAS"
             />
           </div>
@@ -233,26 +297,26 @@ export default function ValidarOrdenCompra() {
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="RUC del Comprador"
-              value={documento.ruc_emisor || ''}
-              onChange={(e) => setDocumento({...documento, ruc_emisor: e.target.value})}
+              value={formData.ruc_emisor}
+              onChange={(e) => handleChange('ruc_emisor', e.target.value)}
               maxLength={11}
               required
             />
             <Input
               label="Razón Social del Comprador"
-              value={documento.razon_social_emisor || ''}
-              onChange={(e) => setDocumento({...documento, razon_social_emisor: e.target.value})}
+              value={formData.razon_social_emisor}
+              onChange={(e) => handleChange('razon_social_emisor', e.target.value)}
               required
             />
             <Input
               label="Dirección del Comprador"
-              value={documento.direccion_emisor || ''}
-              onChange={(e) => setDocumento({...documento, direccion_emisor: e.target.value})}
+              value={formData.direccion_emisor}
+              onChange={(e) => handleChange('direccion_emisor', e.target.value)}
             />
             <Input
               label="Teléfono del Comprador"
-              value={documento.telefono_emisor || ''}
-              onChange={(e) => setDocumento({...documento, telefono_emisor: e.target.value})}
+              value={formData.telefono_emisor}
+              onChange={(e) => handleChange('telefono_emisor', e.target.value)}
             />
           </div>
         </Card>
@@ -262,22 +326,22 @@ export default function ValidarOrdenCompra() {
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="RUC del Proveedor"
-              value={documento.ruc_cliente || ''}
-              onChange={(e) => setDocumento({...documento, ruc_cliente: e.target.value})}
+              value={formData.ruc_cliente}
+              onChange={(e) => handleChange('ruc_cliente', e.target.value)}
               maxLength={11}
               required
             />
             <Input
               label="Razón Social del Proveedor"
-              value={documento.razon_social_cliente || ''}
-              onChange={(e) => setDocumento({...documento, razon_social_cliente: e.target.value})}
+              value={formData.razon_social_cliente}
+              onChange={(e) => handleChange('razon_social_cliente', e.target.value)}
               required
             />
             <div className="col-span-2">
               <Input
                 label="Dirección del Proveedor"
-                value={documento.direccion_cliente || ''}
-                onChange={(e) => setDocumento({...documento, direccion_cliente: e.target.value})}
+                value={formData.direccion_cliente}
+                onChange={(e) => handleChange('direccion_cliente', e.target.value)}
               />
             </div>
           </div>
@@ -287,8 +351,8 @@ export default function ValidarOrdenCompra() {
         <Card title="Dirección de Entrega">
           <Input
             label="Dirección de Entrega de la Mercadería"
-            value={ordenCompra?.direccion_entrega || ''}
-            onChange={(e) => setOrdenCompra({...ordenCompra, direccion_entrega: e.target.value})}
+            value={formData.direccion_entrega}
+            onChange={(e) => handleChange('direccion_entrega', e.target.value)}
             placeholder="Ej: Av. Elmer Faucett 5104, Callao"
           />
         </Card>
@@ -297,7 +361,7 @@ export default function ValidarOrdenCompra() {
         <Card>
           <div className="flex items-center gap-3 mb-4">
             <Package className="text-blue-600" size={24} />
-            <h3 className="text-lg font-semibold">Items de la Orden</h3>
+            <h3 className="text-lg font-semibold">Items de la Orden ({items.length})</h3>
           </div>
 
           <div className="overflow-x-auto">
@@ -321,11 +385,7 @@ export default function ValidarOrdenCompra() {
                       <input
                         type="text"
                         value={item.codigo_producto || ''}
-                        onChange={(e) => {
-                          const newItems = [...items];
-                          newItems[index].codigo_producto = e.target.value;
-                          setItems(newItems);
-                        }}
+                        onChange={(e) => handleItemChange(index, 'codigo_producto', e.target.value)}
                         className="w-full px-2 py-1 border rounded text-sm"
                       />
                     </td>
@@ -333,11 +393,7 @@ export default function ValidarOrdenCompra() {
                       <input
                         type="text"
                         value={item.descripcion || ''}
-                        onChange={(e) => {
-                          const newItems = [...items];
-                          newItems[index].descripcion = e.target.value;
-                          setItems(newItems);
-                        }}
+                        onChange={(e) => handleItemChange(index, 'descripcion', e.target.value)}
                         className="w-full px-2 py-1 border rounded text-sm"
                       />
                     </td>
@@ -346,11 +402,7 @@ export default function ValidarOrdenCompra() {
                         type="number"
                         step="0.01"
                         value={item.cantidad || ''}
-                        onChange={(e) => {
-                          const newItems = [...items];
-                          newItems[index].cantidad = e.target.value;
-                          setItems(newItems);
-                        }}
+                        onChange={(e) => handleItemChange(index, 'cantidad', e.target.value)}
                         className="w-20 px-2 py-1 border rounded text-sm"
                       />
                     </td>
@@ -358,11 +410,7 @@ export default function ValidarOrdenCompra() {
                       <input
                         type="text"
                         value={item.unidad_medida || ''}
-                        onChange={(e) => {
-                          const newItems = [...items];
-                          newItems[index].unidad_medida = e.target.value;
-                          setItems(newItems);
-                        }}
+                        onChange={(e) => handleItemChange(index, 'unidad_medida', e.target.value)}
                         className="w-20 px-2 py-1 border rounded text-sm"
                       />
                     </td>
@@ -371,11 +419,7 @@ export default function ValidarOrdenCompra() {
                         type="number"
                         step="0.01"
                         value={item.precio_unitario || ''}
-                        onChange={(e) => {
-                          const newItems = [...items];
-                          newItems[index].precio_unitario = e.target.value;
-                          setItems(newItems);
-                        }}
+                        onChange={(e) => handleItemChange(index, 'precio_unitario', e.target.value)}
                         className="w-24 px-2 py-1 border rounded text-sm"
                       />
                     </td>
@@ -402,24 +446,24 @@ export default function ValidarOrdenCompra() {
               label="Subtotal"
               type="number"
               step="0.01"
-              value={documento.subtotal || ''}
-              onChange={(e) => setDocumento({...documento, subtotal: e.target.value})}
+              value={formData.subtotal}
+              onChange={(e) => handleChange('subtotal', parseFloat(e.target.value) || 0)}
               required
             />
             <Input
               label="IGV (18%)"
               type="number"
               step="0.01"
-              value={documento.igv || ''}
-              onChange={(e) => setDocumento({...documento, igv: e.target.value})}
+              value={formData.igv}
+              onChange={(e) => handleChange('igv', parseFloat(e.target.value) || 0)}
               required
             />
             <Input
               label="Total"
               type="number"
               step="0.01"
-              value={documento.total || ''}
-              onChange={(e) => setDocumento({...documento, total: e.target.value})}
+              value={formData.total}
+              onChange={(e) => handleChange('total', parseFloat(e.target.value) || 0)}
               required
             />
           </div>
@@ -428,8 +472,8 @@ export default function ValidarOrdenCompra() {
         {/* Observaciones */}
         <Card title="Observaciones">
           <textarea
-            value={documento.observaciones || ''}
-            onChange={(e) => setDocumento({...documento, observaciones: e.target.value})}
+            value={formData.observaciones}
+            onChange={(e) => handleChange('observaciones', e.target.value)}
             rows={3}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="Observaciones adicionales..."
@@ -438,24 +482,19 @@ export default function ValidarOrdenCompra() {
 
         {/* Botones de Acción */}
         <div className="flex justify-center gap-4">
-          {console.log('=== DEBUG ESTADO ===')}
-          {console.log('Estado:', documento.estado)}
-          {console.log('Tipo:', typeof documento.estado)}
-          {console.log('Comparación:', documento.estado === 'pendiente_validacion')}
-          {console.log('Estado completo:', JSON.stringify(documento.estado))}
           <Button
             type="button"
             variant="outline"
-            onClick={() => navigate('/documentos')}
+            onClick={() => navigate(-1)}
             disabled={saving}
           >
             <X size={20} />
             Cancelar
           </Button>
 
+          {/* 🆕 Corregido: usar 'pendiente_validacion' no 'pendiente_validacion' */}
           {documento.estado === 'pendiente_validacion' && (
             <>
-            {console.log('✅ ENTRÓ AL BLOQUE CONDICIONAL')}
               <Button
                 type="button"
                 variant="danger"
@@ -487,7 +526,8 @@ export default function ValidarOrdenCompra() {
             </>
           )}
 
-          {documento.estado === 'validado' && (
+          {/* 🆕 Corregido: usar 'validada' no 'validado' */}
+          {documento.estado === 'validada' && (
             <Button
               type="submit"
               variant="secondary"
@@ -498,29 +538,6 @@ export default function ValidarOrdenCompra() {
             </Button>
           )}
         </div>
-
-        {/* Botón para continuar subiendo */}
-        {documento.estado === 'validada' && (
-          <div className="mt-4">
-            <button
-              onClick={() => {
-                // Pasar contexto del expediente y empresa
-                navigate('/upload', {
-                  state: {
-                    empresaId: documento.empresa_id,
-                    expedienteId: documento.expediente_id
-                  }
-                });
-              }}
-              className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors flex items-center justify-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Subir más documentos a este expediente
-            </button>
-          </div>
-        )}
       </form>
 
       {saving && <Loading fullScreen />}

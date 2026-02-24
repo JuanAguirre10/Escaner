@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Upload as UploadIcon, FileText, X, AlertCircle, Check, Camera, Image as ImageIcon, FileIcon, Package, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, Button, Loading, Input } from '../components/common';
@@ -12,6 +12,7 @@ import { EXTENSIONES_PERMITIDAS, TAMANO_MAXIMO_MB, MENSAJES, TIPOS_DOCUMENTO } f
 export default function Upload() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   
   // Estados para empresa
   const [busquedaEmpresa, setBusquedaEmpresa] = useState('');
@@ -43,12 +44,20 @@ export default function Upload() {
     cargarTiposDocumento();
   }, []);
   
-  // Cargar contexto si viene de un documento validado
+  // 🆕 CARGAR CONTEXTO desde URL params o location.state
   useEffect(() => {
-    if (location.state?.empresaId && location.state?.expedienteId) {
-      cargarContextoDesdeDocumento(location.state.empresaId, location.state.expedienteId);
+    const expedienteIdParam = searchParams.get('expediente_id');
+    const { empresaId, expedienteId } = location.state || {};
+
+    // Prioridad: location.state > URL params
+    if (empresaId && expedienteId) {
+      console.log('🔄 Cargando desde location.state');
+      cargarContextoCompleto(empresaId, expedienteId);
+    } else if (expedienteIdParam) {
+      console.log('🔄 Cargando desde URL param');
+      cargarContextoDesdeExpediente(expedienteIdParam);
     }
-  }, [location.state]);
+  }, [searchParams, location.state]);
 
   const cargarTiposDocumento = async () => {
     try {
@@ -59,29 +68,55 @@ export default function Upload() {
     }
   };
 
-  const cargarContextoDesdeDocumento = async (empresaId, expedienteId) => {
+  // 🆕 Cargar contexto completo (empresa + expediente)
+  const cargarContextoCompleto = async (empresaId, expedienteId) => {
     try {
-      console.log('🔄 Cargando contexto automático...');
-      console.log('Empresa ID:', empresaId, 'Expediente ID:', expedienteId);
+      console.log('📦 Cargando contexto completo...', { empresaId, expedienteId });
       
       // Cargar empresa
       const emp = await empresaService.obtener(empresaId);
-      console.log('Empresa cargada:', emp);
-      
       setEmpresa(emp);
       setEmpresaSeleccionada(true);
       
       // Cargar expediente
       const exp = await expedienteService.obtener(expedienteId);
-      console.log('Expediente cargado:', exp);
-      
       setExpedienteSeleccionado(exp);
       setMostrandoExpedientes(false);
       
-      toast.success(`Contexto cargado: ${emp.razon_social} - ${exp.codigo_expediente}`);
+      // Cargar expedientes incompletos de la empresa
+      const incompletos = await expedienteService.obtenerIncompletos(empresaId);
+      setExpedientesIncompletos(incompletos);
+      
+      toast.success(`✅ Contexto cargado: ${exp.codigo_expediente}`);
     } catch (error) {
       console.error('Error cargando contexto:', error);
-      toast.error('Error al cargar el contexto del expediente');
+      toast.error('Error al cargar el contexto');
+    }
+  };
+
+  // 🆕 Cargar solo desde expediente (busca la empresa del expediente)
+  const cargarContextoDesdeExpediente = async (expedienteId) => {
+    try {
+      console.log('📦 Cargando desde expediente ID:', expedienteId);
+      
+      // Cargar expediente
+      const exp = await expedienteService.obtener(expedienteId);
+      setExpedienteSeleccionado(exp);
+      setMostrandoExpedientes(false);
+      
+      // Cargar empresa del expediente
+      const emp = await empresaService.obtener(exp.empresa_id);
+      setEmpresa(emp);
+      setEmpresaSeleccionada(true);
+      
+      // Cargar expedientes incompletos de la empresa
+      const incompletos = await expedienteService.obtenerIncompletos(exp.empresa_id);
+      setExpedientesIncompletos(incompletos);
+      
+      toast.success(`✅ Agregando documentos a: ${exp.codigo_expediente}`);
+    } catch (error) {
+      console.error('Error cargando expediente:', error);
+      toast.error('Error al cargar el expediente');
     }
   };
 
@@ -117,14 +152,13 @@ export default function Upload() {
     try {
       console.log('📦 Buscando expedientes incompletos para empresa ID:', empresaSelec.id);
       const incompletos = await expedienteService.obtenerIncompletos(empresaSelec.id);
-      console.log('📦 Expedientes incompletos encontrados:', incompletos);
-      console.log('📦 Cantidad:', incompletos.length);
+      console.log('📦 Expedientes incompletos encontrados:', incompletos.length);
       
       setExpedientesIncompletos(incompletos);
       setMostrandoExpedientes(true);
       
       if (incompletos.length > 0) {
-        toast.success(`Empresa seleccionada. ${incompletos.length} expediente(s) incompleto(s) encontrado(s).`);
+        toast.success(`Empresa seleccionada. ${incompletos.length} expediente(s) incompleto(s).`);
       } else {
         toast.success(`Empresa seleccionada: ${empresaSelec.razon_social}`);
       }
@@ -154,6 +188,16 @@ export default function Upload() {
   const seleccionarExpediente = (expediente) => {
     setExpedienteSeleccionado(expediente);
     setMostrandoExpedientes(false);
+  };
+
+  const recargarExpediente = async (expedienteId) => {
+    try {
+      const exp = await expedienteService.obtener(expedienteId || expedienteSeleccionado.id);
+      setExpedienteSeleccionado(exp);
+      toast.success('Expediente actualizado');
+    } catch (error) {
+      console.error('Error recargando expediente:', error);
+    }
   };
 
   const obtenerDocumentosFaltantes = (expediente) => {
@@ -288,11 +332,16 @@ export default function Upload() {
 
       // Si es OC y expediente temporal, actualizar nombre
       if (expedienteSeleccionado.temporal && tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA) {
-        await expedienteService.actualizarDesdeOC(
+        const expActualizado = await expedienteService.actualizarDesdeOC(
           expedienteSeleccionado.id,
           resultado.numero_documento
         );
-        toast.success(`Expediente nombrado: EXP-${resultado.numero_documento}`);
+        
+        // 🆕 RECARGAR expediente actualizado
+        const expCompleto = await expedienteService.obtener(expedienteSeleccionado.id);
+        setExpedienteSeleccionado(expCompleto);
+        
+        toast.success(`✅ Expediente nombrado: ${expCompleto.codigo_expediente}`);
       }
 
       // Verificar completitud
@@ -301,36 +350,59 @@ export default function Upload() {
       );
 
       if (estadoExpediente.completo) {
-        toast.success('🎉 ¡Expediente completo! Se movió a Lista de Expedientes.');
+        toast.success('🎉 ¡Expediente completo!');
       }
       
       setTimeout(() => {
         setShowProgressToast(false);
-        toast.success(MENSAJES.UPLOAD_SUCCESS);
         
-        // Redirigir según tipo pasando contexto
-        if (tipoSeleccionado === TIPOS_DOCUMENTO.FACTURA) {
-          navigate(`/validar/${resultado.documento_id}`, {
-            state: {
-              empresaId: empresa.id,
-              expedienteId: expedienteSeleccionado.id
-            }
-          });
-        } else if (tipoSeleccionado === TIPOS_DOCUMENTO.GUIA_REMISION) {
-          navigate(`/validar-guia/${resultado.documento_id}`, {
-            state: {
-              empresaId: empresa.id,
-              expedienteId: expedienteSeleccionado.id
-            }
-          });
-        } else if (tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA) {
-          navigate(`/validar-orden/${resultado.documento_id}`, {
-            state: {
-              empresaId: empresa.id,
-              expedienteId: expedienteSeleccionado.id
-            }
-          });
-        }
+        // Limpiar solo el archivo, NO la empresa ni el expediente
+        setArchivo(null);
+        setPreview(null);
+        
+        // 🆕 TOAST con botón para validar (opcional)
+        const tipoNombre = 
+          tipoSeleccionado === TIPOS_DOCUMENTO.FACTURA ? 'Factura' :
+          tipoSeleccionado === TIPOS_DOCUMENTO.GUIA_REMISION ? 'Guía de Remisión' :
+          tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA ? 'Orden de Compra' : 'Documento';
+        
+        toast.success(
+          (t) => (
+            <div className="flex flex-col gap-2">
+              <p className="font-semibold">✅ {tipoNombre} procesada correctamente</p>
+              <p className="text-sm text-gray-600">Puedes seguir agregando más documentos</p>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => {
+                    toast.dismiss(t.id);
+                    const estadoNavegacion = {
+                      empresaId: empresa.id,
+                      expedienteId: expedienteSeleccionado.id
+                    };
+                    
+                    if (tipoSeleccionado === TIPOS_DOCUMENTO.FACTURA) {
+                      navigate(`/validar/${resultado.documento_id}`, { state: estadoNavegacion });
+                    } else if (tipoSeleccionado === TIPOS_DOCUMENTO.GUIA_REMISION) {
+                      navigate(`/validar-guia/${resultado.documento_id}`, { state: estadoNavegacion });
+                    } else if (tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA) {
+                      navigate(`/validar-orden/${resultado.documento_id}`, { state: estadoNavegacion });
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
+                >
+                  Ir a validar
+                </button>
+                <button
+                  onClick={() => toast.dismiss(t.id)}
+                  className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded text-sm font-medium hover:bg-gray-300"
+                >
+                  Continuar aquí
+                </button>
+              </div>
+            </div>
+          ),
+          { duration: 8000 } // 8 segundos para dar tiempo a elegir
+        );
       }, 1000);
       
     } catch (error) {
@@ -343,6 +415,7 @@ export default function Upload() {
     }
   };
 
+  // 🆕 Solo resetear cuando el usuario presione "Cambiar Empresa"
   const resetearFormulario = () => {
     setEmpresa(null);
     setEmpresaSeleccionada(false);
@@ -352,6 +425,9 @@ export default function Upload() {
     setArchivo(null);
     setPreview(null);
     setBusquedaEmpresa('');
+    
+    // Limpiar URL params
+    navigate('/upload', { replace: true });
   };
 
   const tipoActual = tiposDocumento.find(t => t.id === tipoSeleccionado);
@@ -363,90 +439,190 @@ export default function Upload() {
         <p className="text-gray-600 mt-1">Valida la empresa, selecciona expediente y sube documentos</p>
       </div>
 
-      {/* PASO 1: VALIDACIÓN DE EMPRESA */}
-      <Card>
-        <div className="space-y-4">
-          <div className="flex items-start gap-3 text-sm">
-            <AlertCircle className="text-blue-500 shrink-0 mt-0.5" size={20} />
-            <div className="text-gray-600">
-              <p className="font-medium text-gray-900 mb-1">Paso 1: Seleccionar empresa</p>
-              <p>Busca y selecciona la empresa emisora del documento</p>
+      {/* 🆕 Banner de contexto cargado desde expediente */}
+      {expedienteSeleccionado && !mostrandoExpedientes && (
+        <div className="p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-blue-900">
+                📦 Agregando documentos al expediente
+              </p>
+              <p className="text-lg font-bold text-blue-700 mt-1">
+                {expedienteSeleccionado.codigo_expediente}
+              </p>
+              <p className="text-sm text-blue-600">
+                {empresa?.razon_social} (RUC: {empresa?.ruc})
+              </p>
             </div>
+            <button
+              onClick={resetearFormulario}
+              className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors font-medium"
+            >
+              Cambiar Empresa/Expediente
+            </button>
           </div>
+        </div>
+      )}
 
-          <div className="space-y-4">
-            <div className="relative">
-              <Input
-                label="RUC o Nombre de la Empresa"
-                placeholder="Busca por RUC o nombre (mín. 3 caracteres)"
-                value={empresaSeleccionada ? empresa?.razon_social : busquedaEmpresa}
-                onChange={(e) => {
-                  const valor = e.target.value;
-                  setBusquedaEmpresa(valor);
-                  setEmpresaSeleccionada(false);
-                  setEmpresa(null);
-                  setExpedienteSeleccionado(null);
-                  setMostrandoExpedientes(false);
-                  buscarEmpresas(valor);
-                }}
-                disabled={empresaSeleccionada}
-              />
-
-              {/* Sugerencias de autocompletado */}
-              {mostrarSugerencias && sugerencias.length > 0 && !empresaSeleccionada && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                  {sugerencias.map((emp) => (
-                    <button
-                      key={emp.id}
-                      onClick={() => seleccionarEmpresa(emp)}
-                      className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-all duration-200 hover:shadow-sm"
-                    >
-                      <p className="font-semibold text-gray-900 text-base">{emp.razon_social}</p>
-                      <p className="text-sm text-gray-500 mt-1">RUC: {emp.ruc}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {buscando && (
-                <div className="absolute right-3 top-9">
-                  <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                </div>
-              )}
+      {/* 🆕 Mostrar documentos ya agregados al expediente */}
+      {expedienteSeleccionado && !mostrandoExpedientes && expedienteSeleccionado.documentos && (
+        <Card>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">
+                Documentos en este expediente ({expedienteSeleccionado.documentos?.length || 0})
+              </h3>
+              <button
+                onClick={() => navigate(`/expedientes/${expedienteSeleccionado.id}`)}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+              >
+                Ver expediente completo →
+              </button>
             </div>
-
-            {!empresaSeleccionada && busquedaEmpresa.length < 3 && (
-              <p className="text-sm text-gray-500 italic">
-                Escribe al menos 3 caracteres para buscar
+            
+            {expedienteSeleccionado.documentos && expedienteSeleccionado.documentos.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {expedienteSeleccionado.documentos.map((doc) => {
+                  const tipoNombre = 
+                    doc.tipo_documento_id === 1 ? '📄 Factura' :
+                    doc.tipo_documento_id === 2 ? '🚚 Guía de Remisión' :
+                    doc.tipo_documento_id === 3 ? '📋 Orden de Compra' : '📁 Documento';
+                  
+                  return (
+                    <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <div>
+                        <p className="font-medium text-gray-900 text-sm">{tipoNombre}</p>
+                        <p className="text-xs text-gray-600">{doc.numero_documento}</p>
+                      </div>
+                      <div className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
+                        ✓ Agregado
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-4">
+                Aún no hay documentos. Sube el primero.
               </p>
             )}
             
-            {empresaSeleccionada && (
-              <button
-                onClick={resetearFormulario}
-                className="w-full px-4 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-medium transition-colors"
-              >
-                Cambiar Empresa
-              </button>
+            {/* Mostrar notas de entrega */}
+            {expedienteSeleccionado.notas_entrega && expedienteSeleccionado.notas_entrega.length > 0 && (
+              <>
+                <div className="border-t border-gray-200 pt-3 mt-3">
+                  <h4 className="font-semibold text-gray-900 text-sm mb-2">
+                    Notas de Entrega ({expedienteSeleccionado.notas_entrega.length})
+                  </h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {expedienteSeleccionado.notas_entrega.map((nota) => (
+                    <div key={nota.id} className="flex items-center justify-between p-3 bg-purple-50 rounded-lg border border-purple-200">
+                      <div>
+                        <p className="font-medium text-gray-900 text-sm">📦 {nota.numero_nota}</p>
+                        <p className="text-xs text-gray-600">
+                          {new Date(nota.fecha_recepcion).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className={`px-2 py-1 text-xs font-medium rounded ${
+                        nota.estado_mercaderia === 'conforme' 
+                          ? 'bg-green-100 text-green-800'
+                          : nota.estado_mercaderia === 'no_conforme'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {nota.estado_mercaderia === 'conforme' ? '✓ Conforme' :
+                        nota.estado_mercaderia === 'no_conforme' ? '✗ No Conforme' : '⚠ Parcial'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
+        </Card>
+      )}
 
-          {/* Mostrar empresa validada */}
-          {empresaSeleccionada && empresa && (
-            <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <div className="shrink-0">
-                <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
-                  <Check className="text-white" size={24} />
-                </div>
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-green-900">{empresa.razon_social}</p>
-                <p className="text-sm text-green-700">RUC: {empresa.ruc}</p>
+      {/* PASO 1: VALIDACIÓN DE EMPRESA */}
+      {!empresaSeleccionada && (
+        <Card>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 text-sm">
+              <AlertCircle className="text-blue-500 shrink-0 mt-0.5" size={20} />
+              <div className="text-gray-600">
+                <p className="font-medium text-gray-900 mb-1">Paso 1: Seleccionar empresa</p>
+                <p>Busca y selecciona la empresa emisora del documento</p>
               </div>
             </div>
-          )}
-        </div>
-      </Card>
+
+            <div className="space-y-4">
+              <div className="relative">
+                <Input
+                  label="RUC o Nombre de la Empresa"
+                  placeholder="Busca por RUC o nombre (mín. 3 caracteres)"
+                  value={busquedaEmpresa}
+                  onChange={(e) => {
+                    const valor = e.target.value;
+                    setBusquedaEmpresa(valor);
+                    buscarEmpresas(valor);
+                  }}
+                />
+
+                {/* Sugerencias de autocompletado */}
+                {mostrarSugerencias && sugerencias.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                    {sugerencias.map((emp) => (
+                      <button
+                        key={emp.id}
+                        onClick={() => seleccionarEmpresa(emp)}
+                        className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-all duration-200 hover:shadow-sm"
+                      >
+                        <p className="font-semibold text-gray-900 text-base">{emp.razon_social}</p>
+                        <p className="text-sm text-gray-500 mt-1">RUC: {emp.ruc}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {buscando && (
+                  <div className="absolute right-3 top-9">
+                    <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                )}
+              </div>
+
+              {busquedaEmpresa.length > 0 && busquedaEmpresa.length < 3 && (
+                <p className="text-sm text-gray-500 italic">
+                  Escribe al menos 3 caracteres para buscar
+                </p>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Mostrar empresa validada SOLO si NO hay expediente seleccionado */}
+      {empresaSeleccionada && empresa && !expedienteSeleccionado && (
+        <Card>
+          <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="shrink-0">
+              <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                <Check className="text-white" size={24} />
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="font-medium text-green-900">{empresa.razon_social}</p>
+              <p className="text-sm text-green-700">RUC: {empresa.ruc}</p>
+            </div>
+            <button
+              onClick={resetearFormulario}
+              className="px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors font-medium"
+            >
+              Cambiar
+            </button>
+          </div>
+        </Card>
+      )}
 
       {/* PASO 2: SELECCIONAR O CREAR EXPEDIENTE */}
       {empresaSeleccionada && mostrandoExpedientes && (
@@ -497,34 +673,6 @@ export default function Upload() {
             >
               <Plus size={24} className="text-blue-600" />
               <span className="font-medium text-blue-900">Crear Nuevo Expediente</span>
-            </button>
-          </div>
-        </Card>
-      )}
-
-      {/* Expediente seleccionado */}
-      {expedienteSeleccionado && !mostrandoExpedientes && (
-        <Card>
-          <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center gap-3">
-              <Package className="text-blue-600" size={24} />
-              <div>
-                <p className="font-medium text-blue-900">
-                  {expedienteSeleccionado.codigo_expediente}
-                </p>
-                {expedienteSeleccionado.temporal && (
-                  <p className="text-sm text-blue-700">⚠️ Sube primero la Orden de Compra</p>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                setExpedienteSeleccionado(null);
-                setMostrandoExpedientes(true);
-              }}
-              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-            >
-              Cambiar
             </button>
           </div>
         </Card>
@@ -598,10 +746,9 @@ export default function Upload() {
         <NotaEntregaForm 
           expediente={expedienteSeleccionado}
           empresa={empresa}
-          onSuccess={() => {
+          onSuccess={(expId) => {
             toast.success('Nota de entrega creada correctamente');
-            // Recargar expedientes
-            seleccionarEmpresa(empresa);
+            recargarExpediente(expId);
           }}
         />
       )}
@@ -617,8 +764,6 @@ export default function Upload() {
                 <p>Elige cómo deseas cargar el documento</p>
               </div>
             </div>
-
-            {/* TODO EL CONTENIDO ACTUAL DE SUBIR ARCHIVOS SE QUEDA AQUÍ */}
 
             {/* Opciones de carga: Cámara | Imagen | PDF */}
             {!archivo && (

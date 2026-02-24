@@ -26,8 +26,8 @@ export const notaEntregaService = {
   },
 
   /**
-   * Actualiza una nota de entrega
-   */
+ * Actualiza una nota de entrega
+ */
   async actualizar(id, data) {
     const response = await api.put(`/notas-entrega/${id}`, data);
     return response.data;

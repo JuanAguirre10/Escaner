@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, FileText, Truck, ClipboardCheck, Download, Eye } from 'lucide-react';
+import { ArrowLeft, Package, FileText, Truck, ClipboardCheck, Download, Eye, Upload, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { Card, Button, Loading, Badge } from '../components/common';
+import { Card, Loading, Badge } from '../components/common';
 import { expedienteService } from '../services';
 import { formatDate } from '../utils/formatters';
 
@@ -12,6 +12,7 @@ export default function VerExpediente() {
   
   const [expediente, setExpediente] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
 
   useEffect(() => {
     cargarExpediente();
@@ -33,7 +34,7 @@ export default function VerExpediente() {
   const descargarZip = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/v1/expedientes/${id}/descargar-zip`,
+        `http://localhost:8001/api/v1/expedientes/${id}/descargar-zip`,
         {
           method: 'GET',
         }
@@ -59,6 +60,24 @@ export default function VerExpediente() {
       toast.error('Error al descargar el expediente');
     }
   };
+
+  const handleEliminar = async () => {
+  if (!confirmandoEliminar) {
+    setConfirmandoEliminar(true);
+    return;
+  }
+
+  try {
+    await expedienteService.eliminar(expediente.id);
+    toast.success('Expediente eliminado correctamente');
+    navigate('/expedientes');
+  } catch (error) {
+    console.error('Error eliminando expediente:', error);
+    toast.error('Error al eliminar el expediente');
+  } finally {
+    setConfirmandoEliminar(false);
+  }
+};
 
   const getTipoDocumento = (tipoId) => {
     switch (tipoId) {
@@ -86,9 +105,12 @@ export default function VerExpediente() {
     return (
       <div className="text-center py-12">
         <p className="text-gray-500">Expediente no encontrado</p>
-        <Button onClick={() => navigate('/expedientes')} className="mt-4">
+        <button
+          onClick={() => navigate('/expedientes')}
+          className="mt-4 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+        >
           Volver a Expedientes
-        </Button>
+        </button>
       </div>
     );
   }
@@ -110,10 +132,51 @@ export default function VerExpediente() {
         <Badge variant={expediente.estado === 'completo' ? 'success' : 'warning'}>
           {expediente.estado === 'completo' ? 'Completo' : 'En Proceso'}
         </Badge>
-        <Button variant="success" onClick={descargarZip}>
+        
+        {/* BOTÓN AGREGAR DOCUMENTOS */}
+        <button
+          onClick={() => navigate(`/upload?expediente_id=${expediente.id}`)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+        >
+          <Upload size={20} />
+          Agregar Documentos
+        </button>
+
+        {/* Botón Descargar ZIP */}
+        <button
+          onClick={descargarZip}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+        >
           <Download size={20} />
           Descargar ZIP
-        </Button>
+        </button>
+
+        {/* 🆕 Botón Eliminar */}
+        {!confirmandoEliminar ? (
+          <button
+            onClick={() => setConfirmandoEliminar(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+          >
+            <Trash2 size={20} />
+            Eliminar
+          </button>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              onClick={handleEliminar}
+              className="flex items-center gap-2 px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 transition-colors font-medium"
+            >
+              <Trash2 size={20} />
+              Confirmar Eliminar
+            </button>
+            <button
+              onClick={() => setConfirmandoEliminar(false)}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Información General */}
@@ -154,9 +217,7 @@ export default function VerExpediente() {
                   <Badge variant={doc.estado === 'validada' ? 'success' : 'warning'}>
                     {doc.estado}
                   </Badge>
-                  <Button
-                    variant="outline"
-                    size="sm"
+                  <button
                     onClick={() => {
                       if (doc.tipo_documento_id === 3) {
                         navigate(`/validar-orden/${doc.id}`);
@@ -166,15 +227,26 @@ export default function VerExpediente() {
                         navigate(`/validar/${doc.id}`);
                       }
                     }}
+                    className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium"
                   >
                     <Eye size={16} />
                     Ver
-                  </Button>
+                  </button>
                 </div>
               </div>
             ))
           ) : (
-            <p className="text-gray-500 text-center py-4">No hay documentos</p>
+            <div className="text-center py-8">
+              <FileText className="mx-auto text-gray-400 mb-3" size={48} />
+              <p className="text-gray-500 mb-4">No hay documentos en este expediente</p>
+              <button
+                onClick={() => navigate(`/upload?expediente_id=${expediente.id}`)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium mx-auto"
+              >
+                <Upload size={20} />
+                Subir Primer Documento
+              </button>
+            </div>
           )}
         </div>
       </Card>
@@ -204,14 +276,13 @@ export default function VerExpediente() {
                   }>
                     {nota.estado_mercaderia}
                   </Badge>
-                  <Button
-                    variant="outline"
-                    size="sm"
+                  <button
                     onClick={() => navigate(`/notas-entrega/${nota.id}`)}
+                    className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium"
                   >
                     <Eye size={16} />
                     Ver
-                  </Button>
+                  </button>
                 </div>
               </div>
             ))
