@@ -3,7 +3,7 @@ Modelo para Expedientes
 Agrupa documentos relacionados: OC + Factura + Guía + Nota
 """
 
-from sqlalchemy import Column, Integer, String, Date, TIMESTAMP, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Date, TIMESTAMP, ForeignKey, Text, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.base import Base
@@ -24,7 +24,7 @@ class Expediente(Base):
     
     # Estado del expediente
     estado = Column(String(50), default='en_proceso', index=True)
-    # Estados: en_proceso, completo, incompleto, cerrado
+    # Estados: en_proceso, completo, incompleto, cerrado, cerrado_manual
     
     # Fechas
     fecha_creacion = Column(Date, nullable=False)
@@ -32,6 +32,11 @@ class Expediente(Base):
     
     # Información adicional
     observaciones = Column(Text)
+    
+    # Cerrado manual (NUEVO)
+    cerrado_manualmente = Column(Boolean, default=False)
+    cerrado_por = Column(String(100), nullable=True)
+    motivo_cierre = Column(Text, nullable=True)
     
     # Auditoría
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
@@ -42,3 +47,4 @@ class Expediente(Base):
     empresa = relationship("Empresa", back_populates="expedientes")
     documentos = relationship("Documento", back_populates="expediente")
     notas_entrega = relationship("NotaEntrega", back_populates="expediente")
+    documentos_identidad = relationship("DocumentoIdentidad", back_populates="expediente", cascade="all, delete-orphan")

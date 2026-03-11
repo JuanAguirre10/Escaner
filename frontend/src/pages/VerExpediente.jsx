@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, FileText, Truck, ClipboardCheck, Download, Eye, Upload, Trash2 } from 'lucide-react';
+import { ArrowLeft, Package, FileText, Truck, ClipboardCheck, Download, Eye, Upload, Trash2, Lock, Unlock, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, Loading, Badge } from '../components/common';
-import { expedienteService } from '../services';
+import { expedienteService } from '../services/expedienteService';
 import { formatDate } from '../utils/formatters';
 
 export default function VerExpediente() {
@@ -13,6 +13,9 @@ export default function VerExpediente() {
   const [expediente, setExpediente] = useState(null);
   const [loading, setLoading] = useState(true);
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
+  const [mostrarModalCerrar, setMostrarModalCerrar] = useState(false);
+  const [motivoCierre, setMotivoCierre] = useState('');
+  const [cerrando, setCerrando] = useState(false);
 
   useEffect(() => {
     cargarExpediente();
@@ -34,7 +37,7 @@ export default function VerExpediente() {
   const descargarZip = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8001/api/v1/expedientes/${id}/descargar-zip`,
+        `http://localhost:8000/api/v1/expedientes/${id}/descargar-zip`,
         {
           method: 'GET',
         }
@@ -62,22 +65,54 @@ export default function VerExpediente() {
   };
 
   const handleEliminar = async () => {
-  if (!confirmandoEliminar) {
-    setConfirmandoEliminar(true);
-    return;
-  }
+    if (!confirmandoEliminar) {
+      setConfirmandoEliminar(true);
+      return;
+    }
 
-  try {
-    await expedienteService.eliminar(expediente.id);
-    toast.success('Expediente eliminado correctamente');
-    navigate('/expedientes');
-  } catch (error) {
-    console.error('Error eliminando expediente:', error);
-    toast.error('Error al eliminar el expediente');
-  } finally {
-    setConfirmandoEliminar(false);
-  }
-};
+    try {
+      await expedienteService.eliminar(expediente.id);
+      toast.success('Expediente eliminado correctamente');
+      navigate('/expedientes');
+    } catch (error) {
+      console.error('Error eliminando expediente:', error);
+      toast.error('Error al eliminar el expediente');
+    } finally {
+      setConfirmandoEliminar(false);
+    }
+  };
+
+  const handleCerrarExpediente = async () => {
+    if (!motivoCierre || motivoCierre.length < 10) {
+      toast.error('Debes ingresar un motivo (mínimo 10 caracteres)');
+      return;
+    }
+
+    try {
+      setCerrando(true);
+      await expedienteService.cerrar(expediente.id, motivoCierre);
+      toast.success('✅ Expediente cerrado exitosamente');
+      setMostrarModalCerrar(false);
+      setMotivoCierre('');
+      cargarExpediente();
+    } catch (error) {
+      toast.error('Error al cerrar expediente');
+      console.error(error);
+    } finally {
+      setCerrando(false);
+    }
+  };
+
+  const handleReabrirExpediente = async () => {
+    try {
+      await expedienteService.reabrir(expediente.id);
+      toast.success('✅ Expediente reabierto');
+      cargarExpediente();
+    } catch (error) {
+      toast.error('Error al reabrir expediente');
+      console.error(error);
+    }
+  };
 
   const getTipoDocumento = (tipoId) => {
     switch (tipoId) {
@@ -130,10 +165,11 @@ export default function VerExpediente() {
           <p className="text-gray-600 mt-1">Orden de Compra: {expediente.numero_orden_compra}</p>
         </div>
         <Badge variant={expediente.estado === 'completo' ? 'success' : 'warning'}>
-          {expediente.estado === 'completo' ? 'Completo' : 'En Proceso'}
+          {expediente.estado === 'completo' ? 'Completo' : 
+           expediente.estado === 'cerrado_manual' ? 'Cerrado Manual' : 'En Proceso'}
         </Badge>
         
-        {/* BOTÓN AGREGAR DOCUMENTOS */}
+        {/* Botón Agregar Documentos */}
         <button
           onClick={() => navigate(`/upload?expediente_id=${expediente.id}`)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
@@ -151,7 +187,29 @@ export default function VerExpediente() {
           Descargar ZIP
         </button>
 
-        {/* 🆕 Botón Eliminar */}
+        {/* Botón Cerrar Expediente */}
+        {expediente.estado !== 'completo' && !expediente.cerrado_manualmente && (
+          <button
+            onClick={() => setMostrarModalCerrar(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+          >
+            <Lock size={20} />
+            Cerrar Expediente
+          </button>
+        )}
+
+        {/* Botón Reabrir Expediente */}
+        {expediente.cerrado_manualmente && (
+          <button
+            onClick={handleReabrirExpediente}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <Unlock size={20} />
+            Reabrir Expediente
+          </button>
+        )}
+
+        {/* Botón Eliminar */}
         {!confirmandoEliminar ? (
           <button
             onClick={() => setConfirmandoEliminar(true)}
@@ -190,6 +248,12 @@ export default function VerExpediente() {
             <div>
               <p className="text-sm text-gray-600">Fecha Cierre</p>
               <p className="font-medium">{formatDate(expediente.fecha_cierre)}</p>
+            </div>
+          )}
+          {expediente.cerrado_manualmente && expediente.motivo_cierre && (
+            <div className="col-span-2">
+              <p className="text-sm text-gray-600">Motivo de Cierre</p>
+              <p className="font-medium text-orange-700">{expediente.motivo_cierre}</p>
             </div>
           )}
         </div>
@@ -292,11 +356,92 @@ export default function VerExpediente() {
         </div>
       </Card>
 
+      {/* Documentos de Identidad */}
+      <Card title="Documentos de Identidad">
+        <div className="space-y-3">
+          {expediente.documentos_identidad && expediente.documentos_identidad.length > 0 ? (
+            expediente.documentos_identidad.map((doc) => (
+              <div
+                key={doc.id}
+                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <User className="text-purple-600" size={20} />
+                  <div>
+                    <p className="font-medium text-gray-900">{doc.tipo_documento}</p>
+                    <p className="text-sm text-gray-600">{doc.numero_documento}</p>
+                    <p className="text-xs text-gray-500">
+                      {doc.nombre_completo || `${doc.nombres} ${doc.apellidos}`}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => navigate(`/documento-identidad/${doc.id}`)}
+                    className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium"
+                  >
+                    <Eye size={16} />
+                    Ver
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-gray-500 text-center py-4">No hay documentos de identidad registrados</p>
+          )}
+        </div>
+      </Card>
+
       {/* Observaciones */}
       {expediente.observaciones && (
         <Card title="Observaciones">
           <p className="text-gray-700">{expediente.observaciones}</p>
         </Card>
+      )}
+
+      {/* Modal Cerrar Expediente */}
+      {mostrarModalCerrar && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-xl font-bold mb-4">Cerrar Expediente</h3>
+            <p className="text-gray-600 mb-4">
+              Vas a cerrar este expediente sin completar todos los documentos. 
+              Explica el motivo:
+            </p>
+            
+            <textarea
+              value={motivoCierre}
+              onChange={(e) => setMotivoCierre(e.target.value)}
+              placeholder="Ej: Cliente canceló pedido, documentos faltantes no son necesarios..."
+              className="w-full border rounded-lg p-3 mb-4 min-h-32"
+              maxLength={500}
+            />
+            
+            <p className="text-sm text-gray-500 mb-4">
+              {motivoCierre.length}/500 caracteres (mínimo 10)
+            </p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setMostrarModalCerrar(false);
+                  setMotivoCierre('');
+                }}
+                disabled={cerrando}
+                className="flex-1 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleCerrarExpediente}
+                disabled={cerrando || motivoCierre.length < 10}
+                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
+              >
+                {cerrando ? 'Cerrando...' : 'Cerrar Expediente'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -6,6 +6,7 @@ import { Card, Button, Loading, Input } from '../components/common';
 import DocumentPreview from '../components/common/DocumentPreview';
 import ProgressToast from '../components/common/ProgressToast';
 import { ocrService, empresaService, tipoDocumentoService, expedienteService } from '../services';
+import documentoIdentidadService from '../services/documentoIdentidadService';
 import NotaEntregaForm from '../components/NotaEntregaForm';
 import { EXTENSIONES_PERMITIDAS, TAMANO_MAXIMO_MB, MENSAJES, TIPOS_DOCUMENTO } from '../utils/constants';
 
@@ -39,17 +40,23 @@ export default function Upload() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showProgressToast, setShowProgressToast] = useState(false);
 
+  // Función helper para verificar si un expediente es temporal
+  const esTemporal = (expediente) => {
+    if (!expediente) return false;
+    return expediente.temporal || 
+           expediente.codigo_expediente?.startsWith('TEMP-') ||
+           expediente.numero_orden_compra === 'PENDIENTE';
+  };
+
   // Cargar tipos de documento al montar
   useEffect(() => {
     cargarTiposDocumento();
   }, []);
   
-  // 🆕 CARGAR CONTEXTO desde URL params o location.state
   useEffect(() => {
     const expedienteIdParam = searchParams.get('expediente_id');
     const { empresaId, expedienteId } = location.state || {};
 
-    // Prioridad: location.state > URL params
     if (empresaId && expedienteId) {
       console.log('🔄 Cargando desde location.state');
       cargarContextoCompleto(empresaId, expedienteId);
@@ -68,22 +75,18 @@ export default function Upload() {
     }
   };
 
-  // 🆕 Cargar contexto completo (empresa + expediente)
   const cargarContextoCompleto = async (empresaId, expedienteId) => {
     try {
       console.log('📦 Cargando contexto completo...', { empresaId, expedienteId });
       
-      // Cargar empresa
       const emp = await empresaService.obtener(empresaId);
       setEmpresa(emp);
       setEmpresaSeleccionada(true);
       
-      // Cargar expediente
       const exp = await expedienteService.obtener(expedienteId);
       setExpedienteSeleccionado(exp);
       setMostrandoExpedientes(false);
       
-      // Cargar expedientes incompletos de la empresa
       const incompletos = await expedienteService.obtenerIncompletos(empresaId);
       setExpedientesIncompletos(incompletos);
       
@@ -94,22 +97,18 @@ export default function Upload() {
     }
   };
 
-  // 🆕 Cargar solo desde expediente (busca la empresa del expediente)
   const cargarContextoDesdeExpediente = async (expedienteId) => {
     try {
       console.log('📦 Cargando desde expediente ID:', expedienteId);
       
-      // Cargar expediente
       const exp = await expedienteService.obtener(expedienteId);
       setExpedienteSeleccionado(exp);
       setMostrandoExpedientes(false);
       
-      // Cargar empresa del expediente
       const emp = await empresaService.obtener(exp.empresa_id);
       setEmpresa(emp);
       setEmpresaSeleccionada(true);
       
-      // Cargar expedientes incompletos de la empresa
       const incompletos = await expedienteService.obtenerIncompletos(exp.empresa_id);
       setExpedientesIncompletos(incompletos);
       
@@ -148,7 +147,6 @@ export default function Upload() {
     setSugerencias([]);
     setMostrarSugerencias(false);
     
-    // Cargar expedientes incompletos
     try {
       console.log('📦 Buscando expedientes incompletos para empresa ID:', empresaSelec.id);
       const incompletos = await expedienteService.obtenerIncompletos(empresaSelec.id);
@@ -201,7 +199,7 @@ export default function Upload() {
   };
 
   const obtenerDocumentosFaltantes = (expediente) => {
-    if (!expediente.documentos) return ['OC', 'Factura', 'Guía', 'Nota'];
+    if (!expediente.documentos) return ['OC', 'DNI', 'Factura', 'Guía', 'Nota'];
     
     const tiene_oc = expediente.documentos.some(d => d.tipo_documento_id === 3);
     const tiene_factura = expediente.documentos.some(d => d.tipo_documento_id === 1);
@@ -278,144 +276,187 @@ export default function Upload() {
   };
 
   const handleUpload = async () => {
-    if (!empresaSeleccionada) {
-      toast.error('Debes seleccionar una empresa primero');
-      return;
-    }
+  if (!empresaSeleccionada) {
+    toast.error('Debes seleccionar una empresa primero');
+    return;
+  }
 
-    if (!expedienteSeleccionado) {
-      toast.error('Selecciona o crea un expediente');
-      return;
-    }
+  if (!expedienteSeleccionado) {
+    toast.error('Selecciona o crea un expediente');
+    return;
+  }
 
-    if (!archivo) {
-      toast.error('Selecciona un archivo primero');
-      return;
-    }
+  if (!archivo) {
+    toast.error('Selecciona un archivo primero');
+    return;
+  }
 
-    // Validar que si es expediente temporal, debe subir OC primero
-    if (expedienteSeleccionado.temporal && tipoSeleccionado !== TIPOS_DOCUMENTO.ORDEN_COMPRA) {
-      toast.error('Debes subir primero la Orden de Compra para nombrar el expediente');
-      return;
-    }
+  // Validar que expediente temporal requiere OC primero
+  if (esTemporal(expedienteSeleccionado) && tipoSeleccionado !== TIPOS_DOCUMENTO.ORDEN_COMPRA && tipoSeleccionado !== 5) {
+    toast.error('Debes subir primero la Orden de Compra para nombrar el expediente');
+    return;
+  }
 
-    try {
-      setUploading(true);
-      setShowProgressToast(true);
-      setUploadProgress(0);
-      
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 95) {
-            clearInterval(progressInterval);
-            return 95;
-          }
-          return prev + Math.random() * 15;
-        });
-      }, 500);
-      
-      // Procesar con OCR
-      const resultado = await ocrService.procesarDocumento(
-        archivo,
-        empresa?.id,
-        tipoSeleccionado
-      );
+  try {
+    setUploading(true);
+    setShowProgressToast(true);
+    setUploadProgress(0);
+    
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 95) {
+          clearInterval(progressInterval);
+          return 95;
+        }
+        return prev + Math.random() * 15;
+      });
+    }, 500);
+
+    // Si es Documento de Identidad (tipo 5)
+    if (tipoSeleccionado === 5) {
+      const formData = new FormData();
+      formData.append('archivo', archivo);
+      formData.append('expediente_id', expedienteSeleccionado.id);
+
+      const resultado = await documentoIdentidadService.procesar(formData);
       
       clearInterval(progressInterval);
       setUploadProgress(100);
 
-      // Asociar al expediente
-      await expedienteService.asociarDocumento(
-        expedienteSeleccionado.id,
-        resultado.documento_id
-      );
-
-      // Si es OC y expediente temporal, actualizar nombre
-      if (expedienteSeleccionado.temporal && tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA) {
-        const expActualizado = await expedienteService.actualizarDesdeOC(
-          expedienteSeleccionado.id,
-          resultado.numero_documento
-        );
-        
-        // 🆕 RECARGAR expediente actualizado
-        const expCompleto = await expedienteService.obtener(expedienteSeleccionado.id);
-        setExpedienteSeleccionado(expCompleto);
-        
-        toast.success(`✅ Expediente nombrado: ${expCompleto.codigo_expediente}`);
-      }
-
-      // Verificar completitud
-      const estadoExpediente = await expedienteService.verificarCompletitud(
-        expedienteSeleccionado.id
-      );
-
-      if (estadoExpediente.completo) {
-        toast.success('🎉 ¡Expediente completo!');
-      }
-      
       setTimeout(() => {
         setShowProgressToast(false);
-        
-        // Limpiar solo el archivo, NO la empresa ni el expediente
         setArchivo(null);
         setPreview(null);
         
-        // 🆕 TOAST con botón para validar (opcional)
-        const tipoNombre = 
-          tipoSeleccionado === TIPOS_DOCUMENTO.FACTURA ? 'Factura' :
-          tipoSeleccionado === TIPOS_DOCUMENTO.GUIA_REMISION ? 'Guía de Remisión' :
-          tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA ? 'Orden de Compra' : 'Documento';
-        
-        toast.success(
-          (t) => (
-            <div className="flex flex-col gap-2">
-              <p className="font-semibold">✅ {tipoNombre} procesada correctamente</p>
-              <p className="text-sm text-gray-600">Puedes seguir agregando más documentos</p>
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={() => {
-                    toast.dismiss(t.id);
-                    const estadoNavegacion = {
-                      empresaId: empresa.id,
-                      expedienteId: expedienteSeleccionado.id
-                    };
-                    
-                    if (tipoSeleccionado === TIPOS_DOCUMENTO.FACTURA) {
-                      navigate(`/validar/${resultado.documento_id}`, { state: estadoNavegacion });
-                    } else if (tipoSeleccionado === TIPOS_DOCUMENTO.GUIA_REMISION) {
-                      navigate(`/validar-guia/${resultado.documento_id}`, { state: estadoNavegacion });
-                    } else if (tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA) {
-                      navigate(`/validar-orden/${resultado.documento_id}`, { state: estadoNavegacion });
-                    }
-                  }}
-                  className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
-                >
-                  Ir a validar
-                </button>
-                <button
-                  onClick={() => toast.dismiss(t.id)}
-                  className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded text-sm font-medium hover:bg-gray-300"
-                >
-                  Continuar aquí
-                </button>
-              </div>
-            </div>
-          ),
-          { duration: 8000 } // 8 segundos para dar tiempo a elegir
-        );
+        toast.success(`✅ Documento de identidad procesado: ${resultado.tipo_documento}`);
+        recargarExpediente(expedienteSeleccionado.id);
       }, 1000);
-      
-    } catch (error) {
-      setShowProgressToast(false);
-      console.error('Error al procesar:', error);
-      toast.error(error.response?.data?.detail || MENSAJES.UPLOAD_ERROR);
-    } finally {
-      setUploading(false);
-      setUploadProgress(0);
-    }
-  };
 
-  // 🆕 Solo resetear cuando el usuario presione "Cambiar Empresa"
+      return;
+    }
+    
+    // Procesar con OCR (otros documentos)
+    const resultado = await ocrService.procesarDocumento(
+      archivo,
+      empresa?.id,
+      tipoSeleccionado
+    );
+    
+    clearInterval(progressInterval);
+    setUploadProgress(100);
+
+    // Si es OC y expediente temporal, verificar si ya existe ANTES de asociar
+    if (esTemporal(expedienteSeleccionado) && tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA) {
+      const verificacion = await expedienteService.verificarOC(resultado.numero_documento);
+      
+      if (verificacion.existe) {
+        // Ya existe - Eliminar el documento recién creado y mostrar error
+        try {
+          await ocrService.eliminarDocumento(resultado.documento_id);
+        } catch (e) {
+          console.error('Error eliminando documento:', e);
+        }
+        
+        setShowProgressToast(false);
+        setArchivo(null);
+        setPreview(null);
+        setUploading(false);
+        
+        toast.error(
+          `Ya existe el expediente ${verificacion.codigo_expediente} con la OC ${resultado.numero_documento}. Ve a ese expediente o sube una OC diferente.`,
+          { duration: 10000 }
+        );
+        return; // DETENER aquí
+      }
+    }
+
+    // Asociar al expediente (solo si pasó la verificación)
+    await expedienteService.asociarDocumento(
+      expedienteSeleccionado.id,
+      resultado.documento_id
+    );
+
+    // Si es OC y expediente temporal, actualizar nombre
+    if (esTemporal(expedienteSeleccionado) && tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA) {
+      const expActualizado = await expedienteService.actualizarDesdeOC(
+        expedienteSeleccionado.id,
+        resultado.numero_documento
+      );
+      
+      const expCompleto = await expedienteService.obtener(expedienteSeleccionado.id);
+      setExpedienteSeleccionado(expCompleto);
+      
+      toast.success(`✅ Expediente nombrado: ${expCompleto.codigo_expediente}`);
+    }
+
+    // Verificar completitud
+    const estadoExpediente = await expedienteService.verificarCompletitud(
+      expedienteSeleccionado.id
+    );
+
+    if (estadoExpediente.completo) {
+      toast.success('🎉 ¡Expediente completo!');
+    }
+    
+    setTimeout(() => {
+      setShowProgressToast(false);
+      setArchivo(null);
+      setPreview(null);
+      
+      const tipoNombre = 
+        tipoSeleccionado === TIPOS_DOCUMENTO.FACTURA ? 'Factura' :
+        tipoSeleccionado === TIPOS_DOCUMENTO.GUIA_REMISION ? 'Guía de Remisión' :
+        tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA ? 'Orden de Compra' : 'Documento';
+      
+      toast.success(
+        (t) => (
+          <div className="flex flex-col gap-2">
+            <p className="font-semibold">✅ {tipoNombre} procesada correctamente</p>
+            <p className="text-sm text-gray-600">Puedes seguir agregando más documentos</p>
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  const estadoNavegacion = {
+                    empresaId: empresa.id,
+                    expedienteId: expedienteSeleccionado.id
+                  };
+                  
+                  if (tipoSeleccionado === TIPOS_DOCUMENTO.FACTURA) {
+                    navigate(`/validar/${resultado.documento_id}`, { state: estadoNavegacion });
+                  } else if (tipoSeleccionado === TIPOS_DOCUMENTO.GUIA_REMISION) {
+                    navigate(`/validar-guia/${resultado.documento_id}`, { state: estadoNavegacion });
+                  } else if (tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA) {
+                    navigate(`/validar-orden/${resultado.documento_id}`, { state: estadoNavegacion });
+                  }
+                }}
+                className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
+              >
+                Ir a validar
+              </button>
+              <button
+                onClick={() => toast.dismiss(t.id)}
+                className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded text-sm font-medium hover:bg-gray-300"
+              >
+                Continuar aquí
+              </button>
+            </div>
+          </div>
+        ),
+        { duration: 8000 }
+      );
+    }, 1000);
+    
+  } catch (error) {
+    setShowProgressToast(false);
+    console.error('Error al procesar:', error);
+    toast.error(error.response?.data?.detail || MENSAJES.UPLOAD_ERROR);
+  } finally {
+    setUploading(false);
+    setUploadProgress(0);
+  }
+};
+
   const resetearFormulario = () => {
     setEmpresa(null);
     setEmpresaSeleccionada(false);
@@ -426,11 +467,11 @@ export default function Upload() {
     setPreview(null);
     setBusquedaEmpresa('');
     
-    // Limpiar URL params
     navigate('/upload', { replace: true });
   };
 
   const tipoActual = tiposDocumento.find(t => t.id === tipoSeleccionado);
+  const esDocumentoIdentidad = tipoSeleccionado === 5;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -439,7 +480,6 @@ export default function Upload() {
         <p className="text-gray-600 mt-1">Valida la empresa, selecciona expediente y sube documentos</p>
       </div>
 
-      {/* 🆕 Banner de contexto cargado desde expediente */}
       {expedienteSeleccionado && !mostrandoExpedientes && (
         <div className="p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
           <div className="flex items-center justify-between">
@@ -464,7 +504,6 @@ export default function Upload() {
         </div>
       )}
 
-      {/* 🆕 Mostrar documentos ya agregados al expediente */}
       {expedienteSeleccionado && !mostrandoExpedientes && expedienteSeleccionado.documentos && (
         <Card>
           <div className="space-y-3">
@@ -507,7 +546,6 @@ export default function Upload() {
               </p>
             )}
             
-            {/* Mostrar notas de entrega */}
             {expedienteSeleccionado.notas_entrega && expedienteSeleccionado.notas_entrega.length > 0 && (
               <>
                 <div className="border-t border-gray-200 pt-3 mt-3">
@@ -568,7 +606,6 @@ export default function Upload() {
                   }}
                 />
 
-                {/* Sugerencias de autocompletado */}
                 {mostrarSugerencias && sugerencias.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-xl max-h-60 overflow-y-auto">
                     {sugerencias.map((emp) => (
@@ -601,7 +638,6 @@ export default function Upload() {
         </Card>
       )}
 
-      {/* Mostrar empresa validada SOLO si NO hay expediente seleccionado */}
       {empresaSeleccionada && empresa && !expedienteSeleccionado && (
         <Card>
           <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
@@ -636,7 +672,6 @@ export default function Upload() {
               </div>
             </div>
 
-            {/* Expedientes incompletos */}
             {expedientesIncompletos.length > 0 && (
               <div className="space-y-3">
                 <p className="text-sm font-medium text-gray-700">Expedientes incompletos:</p>
@@ -666,7 +701,6 @@ export default function Upload() {
               </div>
             )}
 
-            {/* Crear nuevo expediente */}
             <button
               onClick={crearNuevoExpediente}
               className="w-full p-4 border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg hover:border-blue-500 hover:bg-blue-100 transition-all flex items-center justify-center gap-3"
@@ -692,33 +726,26 @@ export default function Upload() {
 
             {/* Tabs */}
             <div className="border-b border-gray-200">
-              <nav className="flex -mb-px space-x-8">
-                {tiposDocumento
-                  .sort((a, b) => {
-                    const ordenProceso = {
-                      'ORDEN_COMPRA': 1,
-                      'FACTURA': 2,
-                      'GUIA_REMISION': 3,
-                      'NOTA_ENTREGA': 4
-                    };
-                    return (ordenProceso[a.codigo] || 999) - (ordenProceso[b.codigo] || 999);
-                  })
-                  .map((tipo) => {
+              <nav className="flex -mb-px space-x-8 overflow-x-auto">
+                {/* Orden manual: OC, Doc Identidad, Factura, Guía, Nota */}
+                {[
+                  { id: 3, nombre: 'Orden de Compra' },
+                  { id: 5, nombre: 'Doc. Identidad' },
+                  { id: 1, nombre: 'Factura' },
+                  { id: 2, nombre: 'Guía de Remisión' },
+                  { id: 4, nombre: 'Nota de Entrega' },
+                ].map((tipo) => {
                   const esActivo = tipo.id === tipoSeleccionado;
-                  const estaHabilitado = tipo.activo;
 
                   return (
                     <button
                       key={tipo.id}
-                      onClick={() => estaHabilitado && setTipoSeleccionado(tipo.id)}
-                      disabled={!estaHabilitado}
+                      onClick={() => setTipoSeleccionado(tipo.id)}
                       className={`
                         py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap
                         ${esActivo
                           ? 'border-blue-500 text-blue-600'
-                          : estaHabilitado
-                            ? 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                            : 'border-transparent text-gray-300 cursor-not-allowed'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }
                       `}
                     >
@@ -737,11 +764,22 @@ export default function Upload() {
                 </p>
               </div>
             )}
+
+            {esDocumentoIdentidad && (
+              <div className="bg-purple-50 p-4 rounded-lg">
+                <p className="text-sm text-purple-900 font-medium">
+                  📋 Documento de Identidad del Visitante
+                </p>
+                <p className="text-xs text-purple-700 mt-1">
+                  Sube DNI, Carnet de Extranjería, Pasaporte o CPP de la persona que entrega
+                </p>
+              </div>
+            )}
           </div>
         </Card>
       )}
 
-      {/* PASO 4: OPCIONES DE CARGA O FORMULARIO NOTA */}
+      {/* PASO 4: FORMULARIO NOTA ENTREGA */}
       {expedienteSeleccionado && tipoSeleccionado === 4 && (
         <NotaEntregaForm 
           expediente={expedienteSeleccionado}
@@ -753,7 +791,7 @@ export default function Upload() {
         />
       )}
 
-      {/* OPCIONES DE CARGA PARA OC, FACTURA, GUÍA */}
+      {/* OPCIONES DE CARGA PARA OC, DNI, FACTURA, GUÍA */}
       {expedienteSeleccionado && tipoSeleccionado !== 4 && (
         <Card>
           <div className="space-y-4">
@@ -765,15 +803,10 @@ export default function Upload() {
               </div>
             </div>
 
-            {/* Opciones de carga: Cámara | Imagen | PDF */}
             {!archivo && (
               <div className="grid grid-cols-3 gap-4">
-                {/* Cámara */}
                 <button
-                  onClick={() => {
-                    const input = document.getElementById('camera-input');
-                    input.click();
-                  }}
+                  onClick={() => document.getElementById('camera-input').click()}
                   className="flex flex-col items-center justify-center p-6 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
                 >
                   <Camera className="text-gray-400 mb-3" size={32} />
@@ -789,12 +822,8 @@ export default function Upload() {
                   onChange={handleChange}
                 />
 
-                {/* Imagen */}
                 <button
-                  onClick={() => {
-                    const input = document.getElementById('image-input');
-                    input.click();
-                  }}
+                  onClick={() => document.getElementById('image-input').click()}
                   className="flex flex-col items-center justify-center p-6 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
                 >
                   <ImageIcon className="text-gray-400 mb-3" size={32} />
@@ -809,12 +838,8 @@ export default function Upload() {
                   onChange={handleChange}
                 />
 
-                {/* PDF */}
                 <button
-                  onClick={() => {
-                    const input = document.getElementById('pdf-input');
-                    input.click();
-                  }}
+                  onClick={() => document.getElementById('pdf-input').click()}
                   className="flex flex-col items-center justify-center p-6 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
                 >
                   <FileIcon className="text-gray-400 mb-3" size={32} />
@@ -831,7 +856,6 @@ export default function Upload() {
               </div>
             )}
 
-            {/* O zona de arrastre */}
             {!archivo && (
               <>
                 <div className="text-center text-gray-500 text-sm">o</div>
@@ -872,7 +896,6 @@ export default function Upload() {
               </>
             )}
 
-            {/* Archivo seleccionado */}
             {archivo && (
               <div className="space-y-4">
                 {preview ? (

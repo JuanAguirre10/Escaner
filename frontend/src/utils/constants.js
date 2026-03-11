@@ -38,3 +38,28 @@ export const MENSAJES = {
   RUC_INVALIDO: 'RUC no encontrado en la base de datos',
   RUC_ERROR: 'Error al validar RUC',
 };
+
+// Tipos de documentos de identidad
+export const TIPOS_IDENTIDAD = {
+  DNI: 'DNI',
+  CARNET_EXTRANJERIA: 'CARNET_EXTRANJERIA',
+  PASAPORTE: 'PASAPORTE',
+  CPP: 'CPP',
+  OTRO: 'OTRO'
+};
+
+export const LABELS_IDENTIDAD = {
+  DNI: 'DNI',
+  CARNET_EXTRANJERIA: 'Carnet de Extranjería',
+  PASAPORTE: 'Pasaporte',
+  CPP: 'CPP',
+  OTRO: 'Otro Documento'
+};
+
+// Estados de expediente
+export const ESTADOS_EXPEDIENTE = {
+  EN_PROCESO: 'en_proceso',
+  COMPLETO: 'completo',
+  INCOMPLETO: 'incompleto',
+  CERRADO_MANUAL: 'cerrado_manual'
+};

@@ -1,504 +1,533 @@
-# 📄 Sistema de Gestión de Facturas con OCR Inteligente
+# 📄 Sistema de Gestión de Facturas con OCR
 
-**Autor:** Juan Aguirre  
-**Institución:** TECSUP - 4to Ciclo de Software Design & Development  
-**Fecha:** Febrero 2026
+> Sistema completo de procesamiento y validación de documentos comerciales mediante OCR con Claude Vision API
 
----
-
-## 🎯 DESCRIPCIÓN DEL PROYECTO
-
-Sistema automatizado para la gestión y procesamiento de facturas electrónicas peruanas utilizando Inteligencia Artificial (Claude Vision API) para extracción automática de datos con una precisión del 95-98%.
-
-### **Problema Resuelto:**
-Antes se requería ingresar manualmente cada factura (15-20 minutos por factura). Ahora el sistema extrae automáticamente todos los datos en 2-3 segundos, permitiendo solo validar y corregir si es necesario.
-
-### **ROI:**
-- **Tiempo ahorrado:** 25 horas/mes
-- **Costo del sistema:** $7.50/mes (Claude API)
-- **Eficiencia:** 99.5% de automatización
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-blue.svg)](https://www.postgresql.org/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
-## 🏗️ ARQUITECTURA
+## 🚀 Características Principales
 
-### **Stack Tecnológico:**
+### 📸 Procesamiento OCR Inteligente
+- ✅ Extracción automática de datos de facturas, órdenes de compra y guías de remisión
+- ✅ Reconocimiento mediante **Claude 3.5 Sonnet Vision API**
+- ✅ Soporte para PDF, PNG, JPG
+- ✅ Validación automática de RUC y datos empresariales
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                     FRONTEND (React)                     │
-│  - React 18 + Vite                                       │
-│  - TailwindCSS                                           │
-│  - Axios                                                 │
-│  - React Router                                          │
-└─────────────────────────────────────────────────────────┘
-                            ↓ HTTP/REST
-┌─────────────────────────────────────────────────────────┐
-│                   BACKEND (FastAPI)                      │
-│  - Python 3.13                                           │
-│  - FastAPI + Uvicorn                                     │
-│  - SQLAlchemy (ORM)                                      │
-│  - Pydantic (Validación)                                 │
-└─────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────┐
-│                  CLAUDE VISION API                       │
-│  - Model: claude-sonnet-4-20250514                       │
-│  - OCR de PDF e imágenes                                 │
-│  - Extracción estructurada de datos                      │
-└─────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────┐
-│              BASE DE DATOS (PostgreSQL 18)               │
-│  - Facturas + Items + Proveedores                        │
-│  - Sistema de versionado                                 │
-│  - Detección de duplicados                               │
-└─────────────────────────────────────────────────────────┘
-```
+### 📦 Gestión de Expedientes
+- ✅ Organización automática por expedientes
+- ✅ Validación de completitud (OC + Factura + Guía + Nota de Entrega)
+- ✅ Descarga masiva en formato ZIP
+- ✅ Expedientes temporales para flujo progresivo
+
+### 📋 Validación y Edición
+- ✅ Interfaz de validación con vista previa de documentos
+- ✅ Edición manual de campos extraídos
+- ✅ Detección de duplicados
+- ✅ Sistema de aprobación/rechazo con motivos
+
+### 🔍 Búsqueda y Filtros
+- ✅ Búsqueda por RUC, razón social, número de documento
+- ✅ Filtros por estado (pendiente, validada, rechazada)
+- ✅ Filtros por fecha de emisión
+- ✅ Listado de expedientes completos e incompletos
+
+### 📊 Dashboard y Reportes
+- ✅ Estadísticas de documentos procesados
+- ✅ Estado de expedientes (completos/incompletos)
+- ✅ Métricas de validación
 
 ---
 
-## ✨ CARACTERÍSTICAS PRINCIPALES
+## 🛠️ Tecnologías Utilizadas
 
-### **1. Extracción Automática con IA:**
-- ✅ **Datos del Emisor:** RUC, razón social, dirección, teléfono, email
-- ✅ **Datos de Factura:** Número, serie, correlativo, fechas de emisión y vencimiento
-- ✅ **Datos Financieros:** Subtotal, IGV (18%), total, moneda
-- ✅ **Items Detallados:** Descripción, cantidad, precio unitario, descuento %, valor venta, precio venta
-- ✅ **Otros:** Orden de compra, forma de pago, condición de pago, guía de remisión
+### Backend
+- **FastAPI** - Framework web moderno y rápido
+- **PostgreSQL** - Base de datos relacional
+- **SQLAlchemy** - ORM para Python
+- **Anthropic Claude API** - Procesamiento OCR con IA
+- **Pydantic** - Validación de datos
+- **python-multipart** - Manejo de archivos
+- **Pillow** - Procesamiento de imágenes
 
-### **2. Validación Matemática Automática:**
-```python
-# Si Claude lee mal el precio (OCR error)
-Cantidad: 2
-Precio extraído: 18.64 (incorrecto)
-Total: 237.28
+### Frontend
+- **React 18** - Librería UI
+- **Vite** - Build tool y dev server
+- **React Router** - Navegación SPA
+- **TailwindCSS** - Estilos utility-first
+- **Lucide React** - Iconos
+- **React Hot Toast** - Notificaciones
+- **Axios** - Cliente HTTP
 
-# Sistema detecta y corrige:
-2 × 18.64 = 37.28 ≠ 237.28 ❌
-Precio corregido: 237.28 / 2 = 118.64 ✅
-```
-
-### **3. Interfaz Intuitiva:**
-- 📤 **Subida con Drag & Drop** - Arrastra facturas PDF o imágenes
-- 📋 **Lista con Filtros** - Por estado, proveedor, fecha, monto
-- ✏️ **Edición Completa** - Todos los campos editables
-- 📊 **Tabla de Items Dinámica** - Agregar/eliminar/editar items
-- 🔍 **Vista de Imagen Original** - Comparar con datos extraídos
-
-### **4. Gestión de Estados:**
-```
-PENDIENTE_VALIDACION → VALIDADA → ARCHIVADA
-                    ↘ RECHAZADA
-```
-
-### **5. Sistema de Versionado:**
-- Si subes la misma factura 2 veces, se crea una nueva versión
-- La versión anterior se mantiene en el historial
-- No se pierde información
+### Base de Datos
+- **PostgreSQL 15+** - Sistema de gestión de bases de datos
+- **pgAdmin 4** - Herramienta de administración
 
 ---
 
-## 📊 MODELO DE DATOS
+## 📋 Requisitos Previos
 
-### **Diagrama Entidad-Relación:**
+Antes de instalar el proyecto, asegúrate de tener:
 
-```
-┌─────────────────┐
-│   PROVEEDORES   │
-├─────────────────┤
-│ id (PK)         │
-│ ruc (UNIQUE)    │
-│ razon_social    │
-│ direccion       │
-│ telefono        │
-│ email           │
-└─────────────────┘
-        ↓ 1:N
-┌─────────────────┐
-│    FACTURAS     │
-├─────────────────┤
-│ id (PK)         │
-│ proveedor_id    │
-│ numero_factura  │
-│ serie           │
-│ correlativo     │
-│ fecha_emision   │
-│ ruc_emisor      │
-│ subtotal        │
-│ igv             │
-│ total           │
-│ moneda          │
-│ estado          │
-│ es_duplicada    │
-│ confianza_ocr   │
-└─────────────────┘
-        ↓ 1:N
-┌─────────────────┐
-│ FACTURAS_ITEMS  │
-├─────────────────┤
-│ id (PK)         │
-│ factura_id (FK) │
-│ orden           │
-│ descripcion     │
-│ cantidad        │
-│ precio_unitario │
-│ descuento_%     │
-│ valor_venta     │
-│ valor_total     │
-└─────────────────┘
-```
+- [Python 3.11+](https://www.python.org/downloads/)
+- [Node.js 18+](https://nodejs.org/)
+- [PostgreSQL 15+](https://www.postgresql.org/download/)
+- [Git](https://git-scm.com/)
+- Cuenta en [Anthropic](https://www.anthropic.com/) (para API Key de Claude)
 
 ---
 
-## 🚀 INSTALACIÓN Y CONFIGURACIÓN
+## 🔧 Instalación
 
-### **Requisitos Previos:**
-- Python 3.11+
-- Node.js 18+
-- PostgreSQL 18
-- Claude API Key (Anthropic)
-
-### **1. Clonar Repositorio:**
-```bash
-git clone https://github.com/tu-usuario/sistema-facturas.git
-cd sistema-facturas
-```
-
-### **2. Configurar Backend:**
+### 1️⃣ Clonar el Repositorio
 
 ```bash
-# Crear entorno virtual
-python -m venv venv
-venv\Scripts\activate  # Windows
-source venv/bin/activate  # Linux/Mac
-
-# Instalar dependencias
-cd backend
-pip install -r requirements.txt
-
-# Configurar .env
-cp .env.example .env
-# Editar .env con tus credenciales
+git clone https://github.com/JuanAguirre10/Escaner.git
+cd Escaner
 ```
 
-**Archivo `.env`:**
-```env
-# Base de datos
-DATABASE_URL=postgresql://postgres:1234@localhost:5432/facturas_db
+### 2️⃣ Configurar Base de Datos
 
-# Claude API
-ANTHROPIC_API_KEY=sk-ant-api03-tu-key-aqui
+#### Opción A: Usando pgAdmin 4
 
-# Empresa
-EMPRESA_RUC=20516185211
-EMPRESA_RAZON_SOCIAL=TU EMPRESA S.A.C.
-EMPRESA_DIRECCION=Tu dirección
+1. Abre **pgAdmin 4**
+2. Click derecho en "Databases" → "Create" → "Database"
+3. **Name:** `facturas_db`
+4. **Owner:** `postgres`
+5. **Encoding:** `UTF8`
+6. Click "Save"
 
-# Configuración
-MAX_FILE_SIZE_MB=10
-ALLOWED_EXTENSIONS=pdf,png,jpg,jpeg,webp
-```
-
-### **3. Crear Base de Datos:**
+#### Opción B: Usando Terminal
 
 ```bash
-# Conectar a PostgreSQL
 psql -U postgres
-
-# Crear base de datos
 CREATE DATABASE facturas_db;
 \q
 ```
 
+#### Restaurar datos iniciales (si existe backup)
+
 ```bash
-# Aplicar migraciones
-cd backend
-alembic upgrade head
+psql -U postgres -d facturas_db -f backend/database/facturas_db.sql
 ```
 
-### **4. Configurar Frontend:**
+### 3️⃣ Configurar Backend
 
 ```bash
-cd frontend
+cd backend
+
+# Crear entorno virtual
+python -m venv venv
+
+# Activar entorno virtual
+# Windows:
+venv\Scripts\activate
+# Linux/Mac:
+source venv/bin/activate
+
+# Instalar dependencias
+pip install -r requirements.txt
+
+# Crear carpeta de uploads
+mkdir uploads
+```
+
+#### Crear archivo `.env`
+
+Crea un archivo `.env` en la carpeta `backend/`:
+
+```env
+# Base de datos PostgreSQL
+DATABASE_URL=postgresql://postgres:tu_password@localhost:5432/facturas_db
+
+# Claude API
+ANTHROPIC_API_KEY=tu_clave_api_de_claude
+
+# Configuración
+SECRET_KEY=mi_clave_super_secreta_12345678
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# Archivos
+UPLOAD_DIR=./uploads
+MAX_FILE_SIZE_MB=10
+
+# CORS
+FRONTEND_URL=http://localhost:5173
+```
+
+**⚠️ Importante:** Reemplaza `tu_password` y `tu_clave_api_de_claude` con tus valores reales.
+
+### 4️⃣ Configurar Frontend
+
+```bash
+cd ../frontend
+
+# Instalar dependencias
 npm install
 ```
 
-**Archivo `frontend/.env`:**
+#### Crear archivo `.env`
+
+Crea un archivo `.env` en la carpeta `frontend/`:
+
 ```env
 VITE_API_URL=http://localhost:8000/api/v1
 ```
 
-### **5. Ejecutar:**
+---
 
+## ▶️ Ejecución
+
+### Opción 1: Dos Terminales (Recomendado)
+
+**Terminal 1 - Backend:**
 ```bash
-# Terminal 1 - Backend
 cd backend
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+venv\Scripts\activate
+uvicorn app.main:app --reload --port 8000
+```
 
-# Terminal 2 - Frontend
+**Terminal 2 - Frontend:**
+```bash
 cd frontend
 npm run dev
 ```
 
-**Acceder:** http://localhost:5173
+### Opción 2: Script de Inicio Rápido
 
----
-
-## 📖 GUÍA DE USO
-
-### **Paso 1: Subir Factura**
-
-1. Ir a "Subir Factura"
-2. Arrastrar PDF o imagen
-3. Esperar 2-3 segundos (procesamiento con IA)
-4. Sistema redirige automáticamente a validación
-
-### **Paso 2: Validar Datos**
-
-1. Revisar datos extraídos
-2. Comparar con imagen original (botón "Ver Imagen")
-3. Corregir campos si es necesario
-4. Editar items (cantidad, precio, descuento)
-5. Verificar subtotal automático
-
-### **Paso 3: Aprobar o Rechazar**
-
-- ✅ **Validar y Aprobar** - Factura pasa a estado "Validada"
-- ❌ **Rechazar** - Especificar motivo del rechazo
-- 💾 **Guardar Cambios** - Guardar sin cambiar estado
-
-### **Paso 4: Consultar**
-
-1. Ir a "Lista de Facturas"
-2. Usar filtros (estado, proveedor, fecha, monto)
-3. Buscar por número de factura
-4. Ver detalles completos
-
----
-
-## 🎨 CAPTURAS DE PANTALLA
-
-### **1. Subida de Factura:**
-```
-┌─────────────────────────────────────────┐
-│  📤 Arrastra tu factura aquí            │
-│                                         │
-│     [Icono de nube]                     │
-│                                         │
-│  o haz clic para seleccionar            │
-│                                         │
-│  Formatos: PDF, PNG, JPG (Max 10MB)    │
-└─────────────────────────────────────────┘
-```
-
-### **2. Tabla de Items:**
-```
-┌──┬──────────────┬──────┬────────┬────────┬────────────┬──────────┬─────┐
-│# │ DESCRIPCIÓN  │CANT. │P. UNIT.│DESC %  │VALOR VENTA │ P. VENTA │ACC. │
-├──┼──────────────┼──────┼────────┼────────┼────────────┼──────────┼─────┤
-│1 │TRANSFORMADOR │ 2.00 │ 118.64 │  0.00  │   237.28   │  237.28  │  ❌ │
-│2 │DISCO FLAP    │40.00 │  15.25 │  0.00  │   610.00   │  610.18  │  ❌ │
-└──┴──────────────┴──────┴────────┴────────┴────────────┴──────────┴─────┘
-                                      Subtotal (Items): S/ 847.46
+**Windows** (`iniciar.bat`):
+```bat
+@echo off
+start cmd /k "cd backend && venv\Scripts\activate && uvicorn app.main:app --reload --port 8000"
+timeout /t 3 /nobreak > nul
+start cmd /k "cd frontend && npm run dev"
 ```
 
 ---
 
-## 🧪 CASOS DE PRUEBA
+## 🌐 Acceso al Sistema
 
-### **Facturas Probadas:**
+Una vez ejecutado:
 
-| Proveedor | Formato | Items | Descuento | Resultado |
-|-----------|---------|-------|-----------|-----------|
-| VISTONY | PDF (2 págs) | 3 | No | ✅ 98% |
-| DIFE COLORS | PDF (2 págs) | 2 | No | ✅ 97% |
-| INTERNATIONAL | PDF | 4 | Sí (10%) | ⚠️ 90% (descuento no detectado) |
-| M&M REPUESTOS | PDF | 2 | No | ✅ 96% |
-
-**Precisión promedio:** 95.25%
+- **Frontend:** http://localhost:5173
+- **Backend API:** http://localhost:8000
+- **Documentación API:** http://localhost:8000/docs
+- **Documentación Alternativa:** http://localhost:8000/redoc
 
 ---
 
-## 🐛 PROBLEMAS CONOCIDOS Y SOLUCIONES
+## 📁 Estructura del Proyecto
 
-### **1. Descuentos No Detectados**
-**Síntoma:** Columna "Desc %" siempre en 0.00  
-**Causa:** Prompt no detecta variaciones de "%Dto"  
-**Solución temporal:** Editar manualmente  
-**Solución definitiva:** Mejorar prompt (línea 95 de `claude_extractor.py`)
-
-### **2. Dirección del Receptor**
-**Síntoma:** Extrae dirección del cliente en vez del emisor  
-**Causa:** Facturas con layout complejo  
-**Solución:** Prompt mejorado con instrucciones específicas
-
-### **3. Error de Moneda**
-**Síntoma:** "el valor es demasiado largo para character varying(3)"  
-**Causa:** Claude extrae "Dólares Americanos" en vez de "USD"  
-**Solución:** Validación agregada en `ocr.py` (línea 177)
-
----
-
-## 📈 ROADMAP
-
-### **Versión 1.0 (Actual):**
-- ✅ Extracción automática con Claude Vision
-- ✅ CRUD completo de facturas
-- ✅ Validación con todos los campos editables
-- ✅ Gestión de proveedores
-- ✅ Sistema de estados
-
-### **Versión 1.1 (Próximo mes):**
-- ⏳ Dashboard con estadísticas
-- ⏳ Exportar a Excel
-- ⏳ Notificaciones de vencimiento
-- ⏳ Búsqueda avanzada
-
-### **Versión 2.0 (Futuro):**
-- ⏳ Sistema de usuarios y roles
-- ⏳ Integración con SUNAT (validar RUC)
-- ⏳ OCR multi-idioma
-- ⏳ App móvil (React Native)
-
----
-
-## 💰 ANÁLISIS DE COSTOS
-
-### **Claude Vision API:**
-- **Costo por factura:** $0.015
-- **500 facturas/mes:** $7.50
-- **1000 facturas/mes:** $15.00
-
-### **Comparación con Competencia:**
-| Servicio | Costo/Factura | Precisión |
-|----------|---------------|-----------|
-| Claude Vision | $0.015 | 95-98% |
-| Google Vision | $0.010 | 30-40% |
-| Azure Form Recognizer | $0.050 | 85-90% |
-| Manual | $0.00 | 100% (15 min) |
-
-**Conclusión:** Claude Vision tiene el mejor balance costo/calidad.
-
----
-
-## 🔒 SEGURIDAD
-
-### **Implementado:**
-- ✅ Validación de extensiones de archivo
-- ✅ Límite de tamaño (10MB)
-- ✅ Sanitización de inputs
-- ✅ Variables de entorno para credenciales
-- ✅ CORS configurado
-
-### **Pendiente:**
-- ⏳ Autenticación JWT
-- ⏳ Roles y permisos
-- ⏳ Encriptación de archivos sensibles
-- ⏳ Auditoría de accesos
-
----
-
-## 📚 DOCUMENTACIÓN TÉCNICA
-
-### **Endpoints Principales:**
-
-#### **POST /api/v1/ocr/procesar**
-Procesa una factura con Claude Vision
-
-**Request:**
-```http
-POST /api/v1/ocr/procesar
-Content-Type: multipart/form-data
-
-archivo: [file]
+```
+Escaner/
+│
+├── backend/                      # Backend FastAPI
+│   ├── app/
+│   │   ├── api/
+│   │   │   └── v1/
+│   │   │       ├── endpoints/    # Endpoints de la API
+│   │   │       │   ├── documentos.py
+│   │   │       │   ├── expedientes.py
+│   │   │       │   ├── empresas.py
+│   │   │       │   ├── guias_remision.py
+│   │   │       │   ├── ordenes_compra.py
+│   │   │       │   └── notas_entrega.py
+│   │   │       └── router.py
+│   │   ├── core/                 # Configuración central
+│   │   │   ├── config.py
+│   │   │   └── database.py
+│   │   ├── models/               # Modelos SQLAlchemy
+│   │   │   ├── documento.py
+│   │   │   ├── expediente.py
+│   │   │   ├── empresa.py
+│   │   │   ├── orden_compra.py
+│   │   │   ├── guia_remision.py
+│   │   │   └── nota_entrega.py
+│   │   ├── schemas/              # Schemas Pydantic
+│   │   ├── services/             # Lógica de negocio
+│   │   │   ├── ocr_service.py
+│   │   │   └── expediente_service.py
+│   │   └── main.py               # Punto de entrada
+│   ├── database/                 # Backups y migraciones
+│   ├── uploads/                  # Archivos subidos
+│   ├── requirements.txt
+│   └── .env
+│
+├── frontend/                     # Frontend React
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── common/           # Componentes reutilizables
+│   │   │   └── NotaEntregaForm.jsx
+│   │   ├── pages/                # Páginas principales
+│   │   │   ├── Upload.jsx
+│   │   │   ├── ListaFacturas.jsx
+│   │   │   ├── ValidarFactura.jsx
+│   │   │   ├── ValidarOrdenCompra.jsx
+│   │   │   ├── ValidarGuiaRemision.jsx
+│   │   │   ├── ListaExpedientes.jsx
+│   │   │   ├── VerExpediente.jsx
+│   │   │   └── VerNotaEntrega.jsx
+│   │   ├── services/             # Servicios API
+│   │   │   ├── api.js
+│   │   │   ├── documentoService.js
+│   │   │   ├── expedienteService.js
+│   │   │   ├── empresaService.js
+│   │   │   └── notaEntregaService.js
+│   │   ├── utils/                # Utilidades
+│   │   │   ├── constants.js
+│   │   │   └── formatters.js
+│   │   ├── App.jsx
+│   │   └── main.jsx
+│   ├── package.json
+│   └── .env
+│
+├── README.md
+└── LICENSE
 ```
 
-**Response:**
-```json
-{
-  "factura_id": 123,
-  "numero_factura": "F001-00012345",
-  "datos_extraidos": {...},
-  "confianza_promedio": 98.0,
-  "tiempo_procesamiento": 2.3,
-  "estado": "pendiente_validacion",
-  "mensaje": "Factura procesada exitosamente"
-}
+---
+
+## 🔌 API Endpoints
+
+### Documentos
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| `GET` | `/api/v1/documentos` | Listar todos los documentos |
+| `GET` | `/api/v1/documentos/{id}` | Obtener documento específico |
+| `POST` | `/api/v1/documentos/ocr` | Procesar documento con OCR |
+| `PUT` | `/api/v1/documentos/{id}` | Actualizar documento |
+| `DELETE` | `/api/v1/documentos/{id}` | Eliminar documento |
+| `POST` | `/api/v1/documentos/{id}/validar` | Validar documento |
+| `POST` | `/api/v1/documentos/{id}/rechazar` | Rechazar documento |
+
+### Expedientes
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| `GET` | `/api/v1/expedientes` | Listar expedientes |
+| `GET` | `/api/v1/expedientes/{id}` | Obtener expediente específico |
+| `POST` | `/api/v1/expedientes/temporal` | Crear expediente temporal |
+| `GET` | `/api/v1/expedientes/incompletos/{empresa_id}` | Listar expedientes incompletos |
+| `POST` | `/api/v1/expedientes/{id}/asociar-documento` | Asociar documento a expediente |
+| `GET` | `/api/v1/expedientes/{id}/descargar-zip` | Descargar expediente en ZIP |
+| `DELETE` | `/api/v1/expedientes/{id}` | Eliminar expediente |
+
+### Empresas
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| `GET` | `/api/v1/empresas` | Listar empresas |
+| `GET` | `/api/v1/empresas/buscar` | Buscar empresa por RUC o nombre |
+| `GET` | `/api/v1/empresas/{id}` | Obtener empresa específica |
+
+### Notas de Entrega
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| `GET` | `/api/v1/notas-entrega` | Listar notas de entrega |
+| `GET` | `/api/v1/notas-entrega/{id}` | Obtener nota específica |
+| `POST` | `/api/v1/notas-entrega` | Crear nota de entrega |
+| `PUT` | `/api/v1/notas-entrega/{id}` | Actualizar nota de entrega |
+
+---
+
+## 📊 Modelo de Base de Datos
+
+### Tablas Principales
+
+**`documentos`** - Documentos procesados
+- Información general del documento
+- Estado de validación
+- Datos de emisor y cliente
+- Totales y moneda
+
+**`expedientes`** - Agrupación de documentos
+- Código de expediente (EXP-{numero_oc})
+- Estado (incompleto/en_proceso/completo)
+- Relación con empresa
+
+**`empresas`** - Catálogo de empresas
+- RUC y razón social
+- Datos de contacto
+
+**`ordenes_compra`** - Datos específicos de OC
+- Fecha de entrega
+- Modo de pago
+- Dirección de entrega
+
+**`guias_remision`** - Datos de guías
+- Punto de partida y llegada
+- Transportista
+- Placas de vehículo
+
+**`notas_entrega`** - Registro de recepción
+- Estado de mercadería (conforme/no conforme/parcial)
+- Fecha de recepción
+- Observaciones
+
+**`documentos_items`** - Items de documentos
+- Descripción de productos
+- Cantidades y precios
+- Descuentos
+
+---
+
+## 🎯 Flujo de Trabajo
+
+### 1. Subir Documento
+
+```
+Usuario selecciona empresa → Crea/selecciona expediente → Sube documento → OCR procesa
 ```
 
-#### **GET /api/v1/facturas/**
-Lista todas las facturas con filtros
+### 2. Validación
 
-**Query Params:**
-- `estado`: pendiente_validacion, validada, rechazada
-- `proveedor_id`: int
-- `fecha_desde`: YYYY-MM-DD
-- `fecha_hasta`: YYYY-MM-DD
-- `search`: string
+```
+Sistema extrae datos → Usuario valida/corrige → Aprueba o rechaza
+```
 
----
+### 3. Expediente Completo
 
-## 🤝 CONTRIBUCIÓN
+```
+OC + Factura + Guía + Nota → Expediente marcado como completo → Descarga disponible
+```
 
-Este es un proyecto académico desarrollado por Juan Aguirre como parte del programa de Software Design & Development en TECSUP.
+### 4. Gestión
 
-**Para reportar bugs o sugerir mejoras:**
-1. Crear un issue en GitHub
-2. Enviar email a juan.aguirre@tecsup.edu.pe
-3. Documentar el problema con:
-   - Captura de pantalla
-   - PDF de factura problemática
-   - Logs del backend
+```
+Búsqueda y filtros → Ver documentos/expedientes → Edición → Descarga ZIP
+```
 
 ---
 
-## 📄 LICENCIA
+## 🔐 Variables de Entorno
 
-Este proyecto es desarrollado con fines académicos.
+### Backend (`backend/.env`)
 
-**Derechos de uso:**
-- ✅ Uso educativo
-- ✅ Uso interno en empresas
-- ❌ Reventa del sistema
-- ❌ Uso comercial sin permiso
+| Variable | Descripción | Requerida |
+|----------|-------------|-----------|
+| `DATABASE_URL` | URL de conexión a PostgreSQL | ✅ |
+| `ANTHROPIC_API_KEY` | API Key de Claude | ✅ |
+| `SECRET_KEY` | Clave secreta para JWT | ✅ |
+| `ALGORITHM` | Algoritmo de encriptación | ✅ |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Tiempo de expiración del token | ✅ |
+| `UPLOAD_DIR` | Directorio de uploads | ✅ |
+| `MAX_FILE_SIZE_MB` | Tamaño máximo de archivo | ✅ |
+| `FRONTEND_URL` | URL del frontend para CORS | ✅ |
 
----
+### Frontend (`frontend/.env`)
 
-## 🙏 AGRADECIMIENTOS
-
-- **TECSUP** - Por la formación en desarrollo de software
-- **Anthropic** - Por Claude Vision API
-- **Comunidad Open Source** - Por las bibliotecas utilizadas
-- **Mentores y Compañeros** - Por el apoyo durante el desarrollo
-
----
-
-## 📞 CONTACTO
-
-**Desarrollador:** Juan Aguirre  
-**Email:** juan.aguirre@tecsup.edu.pe  
-**Institución:** TECSUP - 4to Ciclo  
-**Carrera:** Software Design & Development  
-**LinkedIn:** [linkedin.com/in/juanaguirre-dev](https://linkedin.com/in/juanaguirre-dev)  
-**GitHub:** [github.com/juanaguirre](https://github.com/juanaguirre)
+| Variable | Descripción | Requerida |
+|----------|-------------|-----------|
+| `VITE_API_URL` | URL base del backend API | ✅ |
 
 ---
 
-## 🎓 APRENDIZAJES CLAVE
+## 🧪 Testing
 
-Durante el desarrollo de este proyecto aprendí:
+### Backend
 
-1. **Integración con APIs de IA** - Cómo trabajar con Claude Vision API de Anthropic
-2. **Validación de Datos** - Implementar validaciones matemáticas para corregir errores de OCR
-3. **Arquitectura REST** - Diseñar y desarrollar una API RESTful completa con FastAPI
-4. **ORM con SQLAlchemy** - Modelar y gestionar bases de datos relacionales
-5. **React Avanzado** - Componentes reutilizables, estado complejo, y formularios dinámicos
-6. **Prompting Engineering** - Optimizar prompts para obtener mejor precisión en extracción
-7. **DevOps Básico** - Configuración de entornos, variables de entorno, y despliegue local
+```bash
+cd backend
+pytest
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm test
+```
 
 ---
 
-**Desarrollado con ❤️ por Juan Aguirre - Febrero 2026**
+## 📦 Deployment
 
-**¡Gracias por usar el Sistema de Gestión de Facturas! 🎉**
+### Backend (FastAPI)
+
+#### Con Uvicorn
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+#### Con Gunicorn (Producción)
+
+```bash
+gunicorn app.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+```
+
+### Frontend (React)
+
+```bash
+cd frontend
+npm run build
+```
+
+Los archivos estáticos se generan en `frontend/dist/` y pueden servirse con Nginx, Apache, o cualquier servidor web.
+
+---
+
+## 🐛 Problemas Comunes
+
+### Error: "could not connect to database"
+
+**Solución:** Verifica que PostgreSQL esté corriendo
+```bash
+# Windows
+services.msc → PostgreSQL → Iniciar
+
+# Linux
+sudo systemctl start postgresql
+```
+
+### Error: "Module not found" (Python)
+
+**Solución:**
+```bash
+cd backend
+venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### Error: "Port 8000 already in use"
+
+**Solución:** Cambiar el puerto
+```bash
+uvicorn app.main:app --reload --port 8001
+```
+
+---
+
+## 🤝 Contribución
+
+Las contribuciones son bienvenidas. Por favor:
+
+1. Fork el proyecto
+2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
+
+
+## 👤 Autor
+
+**Juan Aguirre**
+- GitHub: [@JuanAguirre10](https://github.com/JuanAguirre10)
+- Proyecto: [Escaner](https://github.com/JuanAguirre10/Escaner)
+
+---
+
+## 🙏 Agradecimientos
+
+- [Anthropic](https://www.anthropic.com/) - Por Claude Vision API
+- [FastAPI](https://fastapi.tiangolo.com/) - Excelente framework web
+- [React](https://reactjs.org/) - Librería UI potente
+- [TailwindCSS](https://tailwindcss.com/) - Framework CSS utility-first
+

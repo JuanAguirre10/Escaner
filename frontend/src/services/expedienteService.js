@@ -129,5 +129,30 @@ export const expedienteService = {
       responseType: 'blob'
     });
     return response.data;
-  }
+  },
+
+  /**
+   * Cierra un expediente manualmente
+   */
+  async cerrar(id, motivoCierre) {
+    const response = await api.post(`/expedientes/${id}/cerrar`, {
+      motivo_cierre: motivoCierre
+    });
+    return response.data;
+  },
+
+  /**
+   * Reabre un expediente cerrado manualmente
+   */
+  async reabrir(id) {
+    const response = await api.post(`/expedientes/${id}/reabrir`);
+    return response.data;
+  },
+
+  async verificarOC(numeroOrden) {
+    const response = await api.get(`/expedientes/verificar-oc/${numeroOrden}`);
+    return response.data;
+  },
+
+  
 };

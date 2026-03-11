@@ -15,6 +15,10 @@ class ExpedienteBase(BaseModel):
     fecha_creacion: date
     fecha_cierre: Optional[date] = None
     observaciones: Optional[str] = None
+    # NUEVO - Cerrado manual
+    cerrado_manualmente: Optional[bool] = False
+    cerrado_por: Optional[str] = None
+    motivo_cierre: Optional[str] = None
 
 
 class ExpedienteCreate(ExpedienteBase):
@@ -25,6 +29,9 @@ class ExpedienteUpdate(BaseModel):
     estado: Optional[str] = None
     fecha_cierre: Optional[date] = None
     observaciones: Optional[str] = None
+    cerrado_manualmente: Optional[bool] = None
+    cerrado_por: Optional[str] = None
+    motivo_cierre: Optional[str] = None
 
 
 class DocumentoExpediente(BaseModel):
@@ -52,14 +59,28 @@ class NotaEntregaExpediente(BaseModel):
         from_attributes = True
 
 
-from datetime import datetime  # ← ASEGÚRATE que esté importado arriba
+class DocumentoIdentidadExpediente(BaseModel):
+    """Documento de identidad dentro de un expediente"""
+    id: int
+    tipo_documento: str
+    numero_documento: str
+    nombres: Optional[str] = None
+    apellidos: Optional[str] = None
+    nombre_completo: Optional[str] = None
+    empresa_visitante: Optional[str] = None
+    fecha_visita: datetime
+    
+    class Config:
+        from_attributes = True
+
 
 class ExpedienteDetalle(ExpedienteBase):
     """Expediente con documentos asociados"""
     id: int
     documentos: List[DocumentoExpediente] = []
     notas_entrega: List[NotaEntregaExpediente] = []
-    created_at: Optional[datetime] = None  # ← CAMBIAR date a datetime
+    documentos_identidad: List[DocumentoIdentidadExpediente] = []  # NUEVO
+    created_at: Optional[datetime] = None
     created_by: Optional[str] = None
     
     class Config:
@@ -69,8 +90,27 @@ class ExpedienteDetalle(ExpedienteBase):
 class ExpedienteResponse(ExpedienteBase):
     """Expediente sin relaciones anidadas"""
     id: int
-    created_at: Optional[datetime] = None  # ← CAMBIAR date a datetime
+    created_at: Optional[datetime] = None
     created_by: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
+
+# NUEVO - Schemas para cerrar expediente
+class CerrarExpedienteRequest(BaseModel):
+    motivo_cierre: str = Field(..., min_length=10, description="Razón del cierre")
+    documentos_faltantes: Optional[List[str]] = Field(default=[], description="Documentos que faltan")
+
+
+class CerrarExpedienteResponse(BaseModel):
+    id: int
+    codigo_expediente: str
+    estado: str
+    cerrado_manualmente: bool
+    fecha_cierre: Optional[date] = None
+    cerrado_por: Optional[str] = None
+    motivo_cierre: Optional[str] = None
     
     class Config:
         from_attributes = True

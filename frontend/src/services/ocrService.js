@@ -37,6 +37,16 @@ export const ocrService = {
     return response.data;
   },
 
+  /**
+   * Elimina un documento
+   * @param {number} documentoId - ID del documento a eliminar
+   * @returns {Promise}
+   */
+  async eliminarDocumento(documentoId) {
+    const response = await api.delete(`/documentos/${documentoId}`);
+    return response.data;
+  },
+
   // Alias para compatibilidad
   procesarFactura(archivo, empresaId = null) {
     return this.procesarDocumento(archivo, empresaId, 1);

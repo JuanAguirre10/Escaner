@@ -13,6 +13,7 @@ import Pendientes from './pages/Pendientes';
 import ListaExpedientes from './pages/ListaExpedientes';
 import VerExpediente from './pages/VerExpediente';
 import VerNotaEntrega from './pages/VerNotaEntrega';
+import VerDocumentoIdentidad from './pages/VerDocumentoIdentidad';
 
 function App() {
   return (
@@ -55,6 +56,7 @@ function App() {
           <Route path="facturas" element={<ListaDocumentos />} />
           <Route path="pendientes" element={<Pendientes />} />
           <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/documento-identidad/:id" element={<VerDocumentoIdentidad />} />
         </Route>
       </Routes>
     </BrowserRouter>

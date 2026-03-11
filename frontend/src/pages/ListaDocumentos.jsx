@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { Eye, Trash2, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, Button, Badge, Loading, Input } from '../components/common';
-import { documentoService, tipoDocumentoService, notaEntregaService } from '../services';
+import { documentoService, tipoDocumentoService, notaEntregaService, expedienteService } from '../services';
+import documentoIdentidadService from '../services/documentoIdentidadService';
 import { formatDate, formatMoney, getEstadoColor, formatEstado } from '../utils/formatters';
 import { TIPOS_DOCUMENTO } from '../utils/constants';
 import FiltrosFecha from '../components/FiltrosFecha';
@@ -11,6 +12,7 @@ import FiltrosFecha from '../components/FiltrosFecha';
 export default function ListaDocumentos() {
   const [documentos, setDocumentos] = useState([]);
   const [notas, setNotas] = useState([]);
+  const [docsIdentidad, setDocsIdentidad] = useState([]);
   const [tiposDocumento, setTiposDocumento] = useState([]);
   const [tipoSeleccionado, setTipoSeleccionado] = useState(TIPOS_DOCUMENTO.ORDEN_COMPRA);
   const [loading, setLoading] = useState(true);
@@ -44,12 +46,32 @@ export default function ListaDocumentos() {
     try {
       setLoading(true);
       
-      // Si es tipo 4 (Notas), cargar notas en lugar de documentos
+      // Si es tipo 4 (Notas), cargar notas
       if (tipoSeleccionado === 4) {
         const notasData = await notaEntregaService.listar();
         setNotas(notasData);
         setDocumentos([]);
-      } else {
+        setDocsIdentidad([]);
+      } 
+      // Si es tipo 5 (Doc Identidad), cargar documentos de identidad
+      else if (tipoSeleccionado === 5) {
+        const allExpedientes = await expedienteService.listar({ limit: 1000, solo_hoy: false });
+        const allDocs = [];
+        
+        for (const exp of allExpedientes) {
+          try {
+            const docs = await documentoIdentidadService.listarPorExpediente(exp.id);
+            allDocs.push(...docs.map(d => ({ ...d, expediente_codigo: exp.codigo_expediente })));
+          } catch (err) {
+            console.log(`No hay docs identidad para expediente ${exp.id}`);
+          }
+        }
+        
+        setDocsIdentidad(allDocs);
+        setDocumentos([]);
+        setNotas([]);
+      }
+      else {
         // Cargar documentos normales
         const params = {
           tipo_documento_id: tipoSeleccionado,
@@ -68,6 +90,7 @@ export default function ListaDocumentos() {
         const data = await documentoService.listar(params);
         setDocumentos(data);
         setNotas([]);
+        setDocsIdentidad([]);
       }
     } catch (error) {
       console.error('Error cargando documentos:', error);
@@ -112,6 +135,19 @@ export default function ListaDocumentos() {
     }
   };
 
+  const handleEliminarIdentidad = async (id) => {
+    if (!confirm('¿Estás seguro de eliminar este documento de identidad?')) return;
+
+    try {
+      await documentoIdentidadService.eliminar(id);
+      toast.success('Documento de identidad eliminado');
+      cargarDocumentos();
+    } catch (error) {
+      console.error('Error eliminando:', error);
+      toast.error('Error al eliminar documento de identidad');
+    }
+  };
+
   const tipoActual = tiposDocumento.find(t => t.id === tipoSeleccionado);
 
   return (
@@ -125,8 +161,9 @@ export default function ListaDocumentos() {
       {/* Pestañas de Tipos de Documento */}
       <Card>
         <div className="border-b border-gray-200 mb-6">
-          <nav className="flex -mb-px space-x-8">
+          <nav className="flex -mb-px space-x-8 overflow-x-auto">
             {tiposDocumento
+              .filter(tipo => tipo.id !== 5)
               .sort((a, b) => {
                 const ordenProceso = {
                   'ORDEN_COMPRA': 1,
@@ -164,11 +201,25 @@ export default function ListaDocumentos() {
                 </button>
               );
             })}
+            
+            {/* Pestaña Documentos de Identidad */}
+            <button
+              onClick={() => setTipoSeleccionado(5)}
+              className={`
+                py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap transition-colors
+                ${tipoSeleccionado === 5
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }
+              `}
+            >
+              Doc. Identidad
+            </button>
           </nav>
         </div>
 
         {/* Información del tipo seleccionado */}
-        {tipoActual && (
+        {tipoActual && tipoSeleccionado !== 5 && (
           <div className="mb-6 bg-gray-50 p-4 rounded-lg">
             <p className="text-sm text-gray-700">
               <span className="font-medium">Mostrando:</span> {tipoActual.descripcion}
@@ -176,8 +227,16 @@ export default function ListaDocumentos() {
           </div>
         )}
 
-        {/* Filtros - Solo para documentos, no para notas */}
-        {tipoSeleccionado !== 4 && (
+        {tipoSeleccionado === 5 && (
+          <div className="mb-6 bg-purple-50 p-4 rounded-lg">
+            <p className="text-sm text-purple-900">
+              <span className="font-medium">Mostrando:</span> Documentos de identidad de visitantes/entregadores
+            </p>
+          </div>
+        )}
+
+        {/* Filtros - Solo para documentos normales, no para notas ni identidad */}
+        {tipoSeleccionado !== 4 && tipoSeleccionado !== 5 && (
           <>
             {/* Filtros de Fecha */}
             <FiltrosFecha
@@ -252,6 +311,71 @@ export default function ListaDocumentos() {
         {/* Tabla */}
         {loading ? (
           <Loading />
+        ) : tipoSeleccionado === 5 ? (
+          // TABLA DE DOCUMENTOS DE IDENTIDAD
+          docsIdentidad.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-gray-400 text-5xl mb-4">🪪</div>
+              <p className="text-gray-500 font-medium">No hay documentos de identidad</p>
+              <p className="text-sm text-gray-400 mt-2">
+                Los documentos de identidad se registran al subir documentos
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° Documento</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre Completo</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expediente</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Registro</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {docsIdentidad.map((doc) => (
+                    <tr key={doc.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {doc.tipo_documento === 'DNI' ? '🪪 DNI' :
+                         doc.tipo_documento === 'CARNET_EXTRANJERIA' ? '🛂 CE' :
+                         doc.tipo_documento === 'PASAPORTE' ? '📘 Pasaporte' :
+                         doc.tipo_documento === 'CPP' ? '📋 CPP' : '📄 Otro'}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                        {doc.numero_documento}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {doc.nombre_completo || `${doc.nombres || ''} ${doc.apellidos || ''}`.trim()}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {doc.expediente_codigo || 'N/A'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {formatDate(doc.created_at)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center gap-2">
+                          <Link to={`/documento-identidad/${doc.id}`}>
+                            <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                              <Eye size={18} />
+                            </button>
+                          </Link>
+                          <button 
+                            onClick={() => handleEliminarIdentidad(doc.id)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
         ) : tipoSeleccionado === 4 ? (
           // TABLA DE NOTAS DE ENTREGA
           notas.length === 0 ? (
@@ -549,9 +673,43 @@ export default function ListaDocumentos() {
       </Card>
 
       {/* Estadísticas rápidas */}
-      {!loading && (tipoSeleccionado === 4 ? notas.length > 0 : documentos.length > 0) && (
+      {!loading && (tipoSeleccionado === 5 ? docsIdentidad.length > 0 : tipoSeleccionado === 4 ? notas.length > 0 : documentos.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {tipoSeleccionado === 4 ? (
+          {tipoSeleccionado === 5 ? (
+            // Estadísticas para Documentos de Identidad
+            <>
+              <Card>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-gray-900">{docsIdentidad.length}</p>
+                  <p className="text-sm text-gray-600">Total Registrados</p>
+                </div>
+              </Card>
+              <Card>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-blue-600">
+                    {docsIdentidad.filter(d => d.tipo_documento === 'DNI').length}
+                  </p>
+                  <p className="text-sm text-gray-600">DNI</p>
+                </div>
+              </Card>
+              <Card>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-purple-600">
+                    {docsIdentidad.filter(d => d.tipo_documento === 'CARNET_EXTRANJERIA').length}
+                  </p>
+                  <p className="text-sm text-gray-600">Carnet Extranjería</p>
+                </div>
+              </Card>
+              <Card>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-green-600">
+                    {docsIdentidad.filter(d => d.tipo_documento === 'PASAPORTE').length}
+                  </p>
+                  <p className="text-sm text-gray-600">Pasaportes</p>
+                </div>
+              </Card>
+            </>
+          ) : tipoSeleccionado === 4 ? (
             // Estadísticas para Notas
             <>
               <Card>

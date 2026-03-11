@@ -3,7 +3,7 @@ Endpoints para Expedientes
 Gestión de expedientes documentales
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Form
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, or_, and_
 from typing import List, Optional
@@ -312,8 +312,22 @@ def actualizar_expediente_desde_oc(
             detail=f"Expediente con ID {expediente_id} no encontrado"
         )
     
+    nuevo_codigo = f"EXP-{numero_orden}"
+    
+    # Verificar si YA existe otro expediente con este número de OC
+    expediente_duplicado = db.query(Expediente).filter(
+        Expediente.numero_orden_compra == numero_orden,
+        Expediente.id != expediente_id
+    ).first()
+    
+    if expediente_duplicado:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Ya existe el expediente {expediente_duplicado.codigo_expediente} con la OC {numero_orden}. Usa ese expediente o sube una OC diferente."
+        )
+    
     # Actualizar con número de OC
-    expediente.codigo_expediente = f"EXP-{numero_orden}"
+    expediente.codigo_expediente = nuevo_codigo
     expediente.numero_orden_compra = numero_orden
     
     db.commit()
@@ -324,6 +338,8 @@ def actualizar_expediente_desde_oc(
         "codigo_expediente": expediente.codigo_expediente,
         "numero_orden_compra": expediente.numero_orden_compra
     }
+
+
 
 
 @router.post("/{expediente_id}/asociar-documento/{documento_id}")
@@ -509,3 +525,115 @@ async def descargar_expediente_zip(
             "Content-Disposition": f"attachment; filename={expediente.codigo_expediente}.zip"
         }
     )
+
+@router.post("/{expediente_id}/cerrar")
+def cerrar_expediente_manualmente(
+    expediente_id: int,
+    request: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Cierra un expediente manualmente sin requerir todos los documentos
+    """
+    motivo_cierre = request.get('motivo_cierre', '')
+    
+    if not motivo_cierre or len(motivo_cierre) < 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El motivo de cierre debe tener al menos 10 caracteres"
+        )
+    
+    expediente = db.query(Expediente).filter(Expediente.id == expediente_id).first()
+    
+    if not expediente:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Expediente con ID {expediente_id} no encontrado"
+        )
+    
+    if expediente.estado == 'completo' or expediente.cerrado_manualmente:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El expediente ya está cerrado"
+        )
+    
+    expediente.cerrado_manualmente = True
+    expediente.fecha_cierre = date.today()
+    expediente.cerrado_por = 'admin'
+    expediente.motivo_cierre = motivo_cierre
+    expediente.estado = 'cerrado_manual'
+    
+    db.commit()
+    db.refresh(expediente)
+    
+    return {
+        "id": expediente.id,
+        "codigo_expediente": expediente.codigo_expediente,
+        "estado": expediente.estado,
+        "cerrado_manualmente": expediente.cerrado_manualmente,
+        "fecha_cierre": expediente.fecha_cierre,
+        "cerrado_por": expediente.cerrado_por,
+        "motivo_cierre": expediente.motivo_cierre
+    }
+
+
+@router.post("/{expediente_id}/reabrir")
+def reabrir_expediente(
+    expediente_id: int,
+    db: Session = Depends(get_db)
+):
+    """Reabre un expediente cerrado manualmente"""
+    expediente = db.query(Expediente).filter(Expediente.id == expediente_id).first()
+    
+    if not expediente:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Expediente con ID {expediente_id} no encontrado"
+        )
+    
+    if not expediente.cerrado_manualmente:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El expediente no fue cerrado manualmente"
+        )
+    
+    expediente.cerrado_manualmente = False
+    expediente.fecha_cierre = None
+    expediente.cerrado_por = None
+    expediente.motivo_cierre = None
+    expediente.estado = 'en_proceso'
+    
+    db.commit()
+    db.refresh(expediente)
+    
+    return {
+        "id": expediente.id,
+        "codigo_expediente": expediente.codigo_expediente,
+        "estado": expediente.estado,
+        "cerrado_manualmente": expediente.cerrado_manualmente,
+        "fecha_cierre": expediente.fecha_cierre,
+        "cerrado_por": expediente.cerrado_por,
+        "motivo_cierre": expediente.motivo_cierre
+    }
+
+@router.get("/verificar-oc/{numero_orden}")
+def verificar_orden_existente(
+    numero_orden: str,
+    db: Session = Depends(get_db)
+):
+    """Verifica si ya existe un expediente con este número de OC"""
+    expediente = db.query(Expediente).filter(
+        Expediente.numero_orden_compra == numero_orden
+    ).first()
+    
+    if expediente:
+        return {
+            "existe": True,
+            "expediente_id": expediente.id,
+            "codigo_expediente": expediente.codigo_expediente,
+            "estado": expediente.estado
+        }
+    
+    return {
+        "existe": False
+    }

@@ -1,6 +1,6 @@
 """
 Extractor OCR con Claude Vision API
-Procesa facturas, guías de remisión y órdenes de venta
+Procesa facturas, guías de remisión, órdenes de compra y documentos de identidad
 """
 
 import anthropic
@@ -684,9 +684,6 @@ INSTRUCCIONES:
     
     def _convertir_tipos_datos_orden_compra(self, datos: dict) -> dict:
         """Convierte tipos de datos de la orden de compra"""
-        from datetime import datetime
-        from decimal import Decimal
-        
         # Convertir fechas
         if datos.get("fecha_emision"):
             try:
@@ -723,6 +720,155 @@ INSTRUCCIONES:
                             item[campo] = Decimal("0.00")
         
         return datos
+    
+    
+    def extraer_datos_identidad(
+        self, 
+        ruta_archivo: str | Path,
+        tipo_archivo: str = "pdf"
+    ) -> Dict[str, Any]:
+        """
+        Extrae datos de documento de identidad (DNI, CE, Pasaporte, CPP)
+        
+        Args:
+            ruta_archivo: Ruta al archivo PDF o imagen
+            tipo_archivo: Extensión del archivo (pdf, png, jpg, etc.)
+        
+        Returns:
+            Dict con datos extraídos
+        """
+        ruta_archivo = Path(ruta_archivo)
+        
+        # Leer archivo como base64
+        with open(ruta_archivo, 'rb') as f:
+            contenido = base64.standard_b64encode(f.read()).decode('utf-8')
+        
+        # Determinar tipo de contenido
+        extension = ruta_archivo.suffix.lower() if ruta_archivo.suffix else f".{tipo_archivo}"
+        
+        media_types = {
+            '.pdf': 'application/pdf',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.webp': 'image/webp',
+            '.gif': 'image/gif'
+        }
+        
+        media_type = media_types.get(extension, 'application/pdf')
+        content_type = "image" if extension in ['.png', '.jpg', '.jpeg', '.webp', '.gif'] else "document"
+        
+        # Generar prompt
+        prompt = self._generar_prompt_identidad()
+        
+        # Llamar a Claude Vision
+        message = self.client.messages.create(
+            model=self.model,
+            max_tokens=2000,
+            messages=[{
+                "role": "user",
+                "content": [{
+                    "type": content_type,
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": contenido,
+                    },
+                }, {
+                    "type": "text",
+                    "text": prompt
+                }],
+            }],
+        )
+        
+        # Extraer respuesta
+        respuesta = message.content[0].text
+        
+        # Limpiar JSON de la respuesta
+        respuesta = self._limpiar_json(respuesta)
+        
+        # Parsear JSON
+        try:
+            datos = json.loads(respuesta.strip())
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Error parseando respuesta de Claude: {e}\nRespuesta: {respuesta}")
+        
+        # Validar datos
+        datos = self._validar_datos_identidad(datos)
+        
+        # Convertir tipos de datos
+        datos = self._convertir_tipos_datos_identidad(datos)
+        
+        return datos
+    
+    
+    def _generar_prompt_identidad(self) -> str:
+        """Genera el prompt para extraer datos de documento de identidad"""
+        return """Analiza este documento de identidad y extrae:
+
+RESPONDE EN JSON:
+{
+  "tipo_documento": "DNI o CARNET_EXTRANJERIA o PASAPORTE o CPP o OTRO",
+  "numero_documento": "número del documento",
+  "nombres": "nombres de la persona",
+  "apellidos": "apellidos de la persona",
+  "nombre_completo": "nombre completo si no están separados",
+  "nacionalidad": "nacionalidad o null",
+  "fecha_nacimiento": "YYYY-MM-DD o null",
+  "fecha_emision": "YYYY-MM-DD o null",
+  "fecha_vencimiento": "YYYY-MM-DD o null",
+  "sexo": "M o F o null",
+  "confianza": 95,
+  "observaciones": "detalles adicionales"
+}
+
+Solo JSON, sin texto adicional."""
+    
+    
+    def _validar_datos_identidad(self, datos: Dict[str, Any]) -> Dict[str, Any]:
+        """Valida y limpia los datos extraídos del documento de identidad"""
+        if not datos.get('numero_documento'):
+            raise ValueError("No se pudo extraer el número de documento")
+        
+        if not (datos.get('nombres') and datos.get('apellidos')) and not datos.get('nombre_completo'):
+            raise ValueError("No se pudieron extraer los nombres/apellidos")
+        
+        if not datos.get('tipo_documento'):
+            datos['tipo_documento'] = 'OTRO'
+        
+        tipos_validos = ['DNI', 'CARNET_EXTRANJERIA', 'PASAPORTE', 'CPP', 'OTRO']
+        if datos['tipo_documento'] not in tipos_validos:
+            datos['tipo_documento'] = 'OTRO'
+        
+        campos_opcionales = [
+            'nacionalidad', 'fecha_nacimiento', 'fecha_emision', 
+            'fecha_vencimiento', 'sexo', 'observaciones'
+        ]
+        
+        for campo in campos_opcionales:
+            if campo in datos and datos[campo] in [None, '', 'null', 'NULL']:
+                datos[campo] = None
+        
+        return datos
+    
+    
+    def _convertir_tipos_datos_identidad(self, datos: Dict[str, Any]) -> Dict[str, Any]:
+        """Convierte tipos de datos del documento de identidad"""
+        for campo_fecha in ['fecha_nacimiento', 'fecha_emision', 'fecha_vencimiento']:
+            if datos.get(campo_fecha):
+                try:
+                    if isinstance(datos[campo_fecha], str):
+                        datos[campo_fecha] = datetime.strptime(
+                            datos[campo_fecha], '%Y-%m-%d'
+                        ).date()
+                except:
+                    datos[campo_fecha] = None
+        
+        if 'confianza' not in datos:
+            datos['confianza'] = 95.0
+        
+        return datos
+
 
 # ==================================
 # FUNCIÓN LEGACY PARA COMPATIBILIDAD
@@ -742,4 +888,3 @@ def extraer_con_claude(ruta_archivo: Path) -> Tuple[Dict[str, Any], float]:
     datos = extractor.extraer_datos_factura(ruta_archivo)
     confianza = datos.pop('confianza_promedio', 98.0)
     return datos, confianza
-
