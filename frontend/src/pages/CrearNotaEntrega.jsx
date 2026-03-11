@@ -35,7 +35,7 @@ export default function CrearNotaEntrega() {
     try {
       setBuscando(true);
       const docs = await documentoService.listar({
-        tipo_documento_id: 3, // Orden de Compra
+        tipo_documento_id: 3,
         buscar: texto,
         estado: 'validada'
       });
@@ -85,47 +85,47 @@ export default function CrearNotaEntrega() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 px-3 sm:px-0 pb-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4 pt-4 sm:pt-0">
         <button
           onClick={() => navigate('/notas-entrega')}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors shrink-0"
         >
           <ArrowLeft size={24} />
         </button>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Nueva Nota de Entrega</h1>
-          <p className="text-gray-600 mt-1">Registra la recepción de mercadería</p>
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Nueva Nota de Entrega</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">Registra la recepción de mercadería</p>
         </div>
       </div>
 
       {/* Alerta Informativa */}
-      <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
+      <div className="bg-blue-50 border-l-4 border-blue-500 p-3 sm:p-4 rounded-lg">
         <div className="flex items-start gap-3">
-          <AlertCircle className="text-blue-600 shrink-0 mt-0.5" size={24} />
+          <AlertCircle className="text-blue-600 shrink-0 mt-0.5" size={20} />
           <div>
-            <p className="font-semibold text-blue-900">Nota de Entrega - Registro Manual</p>
-            <p className="text-sm text-blue-700 mt-1">
+            <p className="font-semibold text-blue-900 text-sm sm:text-base">Nota de Entrega - Registro Manual</p>
+            <p className="text-xs sm:text-sm text-blue-700 mt-1">
               Este documento se crea manualmente para confirmar la recepción de mercadería. 
               Debe estar asociado a una <strong>Orden de Compra validada</strong>.
             </p>
-            <p className="text-sm text-blue-700 mt-1">
+            <p className="text-xs sm:text-sm text-blue-700 mt-1">
               <strong>No se suben archivos</strong> - toda la información se ingresa directamente en el formulario.
             </p>
           </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
         {/* Información de la Nota */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
-            <FileText className="text-blue-600" size={24} />
-            <h3 className="text-lg font-semibold">Información de la Nota</h3>
+            <FileText className="text-blue-600" size={20} />
+            <h3 className="text-base sm:text-lg font-semibold">Información de la Nota</h3>
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Número de Nota *"
               value={formData.numero_nota}
@@ -156,7 +156,7 @@ export default function CrearNotaEntrega() {
               <select
                 value={formData.estado_mercaderia}
                 onChange={(e) => handleChange('estado_mercaderia', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                 required
               >
                 <option value="conforme">Conforme</option>
@@ -170,8 +170,8 @@ export default function CrearNotaEntrega() {
         {/* Referencias a Documentos del Expediente */}
         <Card>
           <div className="flex items-center gap-3 mb-4">
-            <FileText className="text-green-600" size={24} />
-            <h3 className="text-lg font-semibold">Referencias del Expediente</h3>
+            <FileText className="text-green-600" size={20} />
+            <h3 className="text-base sm:text-lg font-semibold">Referencias del Expediente</h3>
           </div>
           
           <div className="space-y-4">
@@ -185,7 +185,7 @@ export default function CrearNotaEntrega() {
                   handleChange('orden_compra_numero', valor);
                   buscarOrdenesCompra(valor);
                 }}
-                placeholder="Buscar por número de OC (ej: 0001-68688)..."
+                placeholder="Buscar OC (ej: 0001-68688)..."
                 required
               />
 
@@ -204,21 +204,21 @@ export default function CrearNotaEntrega() {
                       key={orden.id}
                       type="button"
                       onClick={() => seleccionarOrden(orden)}
-                      className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-all duration-200"
+                      className="w-full text-left px-3 sm:px-4 py-3 hover:bg-blue-50 active:bg-blue-100 border-b border-gray-100 last:border-b-0 transition-all duration-200"
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="font-semibold text-gray-900 text-base">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-900 text-sm sm:text-base">
                             OC: {orden.numero_documento}
                           </p>
-                          <p className="text-sm text-gray-600 mt-1">
-                            Proveedor: {orden.razon_social_cliente}
+                          <p className="text-xs sm:text-sm text-gray-600 mt-1 truncate">
+                            {orden.razon_social_cliente}
                           </p>
                           <p className="text-xs text-gray-500 mt-1">
                             RUC: {orden.ruc_cliente}
                           </p>
                         </div>
-                        <div className="text-right ml-4">
+                        <div className="text-left sm:text-right sm:ml-4 shrink-0">
                           <p className="text-sm font-medium text-gray-900">
                             {orden.moneda} {parseFloat(orden.total || 0).toFixed(2)}
                           </p>
@@ -235,7 +235,7 @@ export default function CrearNotaEntrega() {
               {/* Sin resultados */}
               {!buscando && mostrarSugerencias && sugerenciasOC.length === 0 && busquedaOC.length >= 3 && (
                 <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg p-4 text-center">
-                  <p className="text-sm text-gray-500">
+                  <p className="text-xs sm:text-sm text-gray-500">
                     No se encontraron órdenes de compra validadas con "{busquedaOC}"
                   </p>
                 </div>
@@ -243,7 +243,7 @@ export default function CrearNotaEntrega() {
             </div>
 
             {busquedaOC.length < 3 && (
-              <p className="text-sm text-gray-500 italic">
+              <p className="text-xs sm:text-sm text-gray-500 italic">
                 Escribe al menos 3 caracteres para buscar órdenes de compra
               </p>
             )}
@@ -271,29 +271,31 @@ export default function CrearNotaEntrega() {
             onChange={(e) => handleChange('observaciones', e.target.value)}
             rows={4}
             placeholder="Observaciones sobre la recepción de mercadería..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
           />
         </Card>
 
         {/* Botones */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-0">
           <Button
             type="button"
             variant="outline"
             onClick={() => navigate('/notas-entrega')}
             disabled={loading}
+            className="w-full sm:w-auto"
           >
             <ArrowLeft size={20} />
-            Cancelar
+            <span>Cancelar</span>
           </Button>
 
           <Button
             type="submit"
             variant="success"
             disabled={loading || !formData.orden_compra_numero}
+            className="w-full sm:w-auto"
           >
             <Save size={20} />
-            {loading ? 'Creando...' : 'Crear Nota de Entrega'}
+            <span>{loading ? 'Creando...' : 'Crear Nota de Entrega'}</span>
           </Button>
         </div>
       </form>

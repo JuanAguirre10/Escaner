@@ -15,7 +15,6 @@ export default function VerDocumentoIdentidad() {
   const [modoEdicion, setModoEdicion] = useState(false);
   const [guardando, setGuardando] = useState(false);
   
-  // Estados para edición
   const [formData, setFormData] = useState({
     tipo_documento: '',
     numero_documento: '',
@@ -39,7 +38,6 @@ export default function VerDocumentoIdentidad() {
       const data = await documentoIdentidadService.obtener(id);
       setDocumento(data);
       
-      // Cargar datos en el formulario
       setFormData({
         tipo_documento: data.tipo_documento || '',
         numero_documento: data.numero_documento || '',
@@ -72,7 +70,6 @@ export default function VerDocumentoIdentidad() {
     try {
       setGuardando(true);
       
-      // Limpiar campos vacíos
       const datosLimpios = {};
       Object.keys(formData).forEach(key => {
         if (formData[key] && formData[key] !== '') {
@@ -93,7 +90,6 @@ export default function VerDocumentoIdentidad() {
   };
 
   const handleCancelar = () => {
-    // Restaurar datos originales
     setFormData({
       tipo_documento: documento.tipo_documento || '',
       numero_documento: documento.numero_documento || '',
@@ -119,17 +115,27 @@ export default function VerDocumentoIdentidad() {
     }
   };
 
+  const getTipoDocumentoCorto = (tipo) => {
+    switch (tipo) {
+      case 'DNI': return '🪪 DNI';
+      case 'CARNET_EXTRANJERIA': return '🛂 CE';
+      case 'PASAPORTE': return '📘 Pasaporte';
+      case 'CPP': return '📋 CPP';
+      default: return '📄 Otro';
+    }
+  };
+
   if (loading) {
     return <Loading fullScreen />;
   }
 
   if (!documento) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-500">Documento no encontrado</p>
+      <div className="text-center py-12 px-4">
+        <p className="text-sm sm:text-base text-gray-500">Documento no encontrado</p>
         <button
           onClick={() => navigate(-1)}
-          className="mt-4 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+          className="mt-4 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 active:bg-gray-800 transition-colors font-medium text-sm"
         >
           Volver
         </button>
@@ -138,44 +144,48 @@ export default function VerDocumentoIdentidad() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 px-3 sm:px-0 pb-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="pt-4 sm:pt-0 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
         <button
           onClick={() => navigate(-1)}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="self-start p-2 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
         >
-          <ArrowLeft size={24} />
+          <ArrowLeft size={20} />
         </button>
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold text-gray-900">Documento de Identidad</h1>
-          <p className="text-gray-600 mt-1">{getTipoDocumento(documento.tipo_documento)}</p>
+        
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Documento de Identidad</h1>
+          <p className="text-xs sm:text-base text-gray-600 mt-1 truncate">
+            <span className="hidden sm:inline">{getTipoDocumento(documento.tipo_documento)}</span>
+            <span className="sm:hidden">{getTipoDocumentoCorto(documento.tipo_documento)}</span>
+          </p>
         </div>
         
         {!modoEdicion ? (
           <button
             onClick={() => setModoEdicion(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors text-sm sm:text-base"
           >
-            <Edit2 size={20} />
+            <Edit2 size={18} />
             Editar
           </button>
         ) : (
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
             <button
               onClick={handleGuardar}
               disabled={guardando}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 active:bg-green-800 transition-colors disabled:opacity-50 text-sm sm:text-base"
             >
-              <Save size={20} />
+              <Save size={18} />
               {guardando ? 'Guardando...' : 'Guardar'}
             </button>
             <button
               onClick={handleCancelar}
               disabled={guardando}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 active:bg-gray-400 transition-colors text-sm sm:text-base"
             >
-              <X size={20} />
+              <X size={18} />
               Cancelar
             </button>
           </div>
@@ -184,15 +194,15 @@ export default function VerDocumentoIdentidad() {
 
       {/* Información del Documento */}
       <Card title="Datos del Documento">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           <div>
-            <label className="text-sm text-gray-600 mb-1 block">Tipo de Documento</label>
+            <label className="text-xs sm:text-sm text-gray-600 mb-1 block">Tipo de Documento</label>
             {modoEdicion ? (
               <select
                 name="tipo_documento"
                 value={formData.tipo_documento}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
               >
                 <option value="DNI">DNI</option>
                 <option value="CARNET_EXTRANJERIA">Carnet de Extranjería</option>
@@ -201,102 +211,105 @@ export default function VerDocumentoIdentidad() {
                 <option value="OTRO">Otro</option>
               </select>
             ) : (
-              <p className="font-semibold text-gray-900">{getTipoDocumento(documento.tipo_documento)}</p>
+              <p className="font-semibold text-gray-900 text-sm sm:text-base">
+                <span className="hidden sm:inline">{getTipoDocumento(documento.tipo_documento)}</span>
+                <span className="sm:hidden">{getTipoDocumentoCorto(documento.tipo_documento)}</span>
+              </p>
             )}
           </div>
           
           <div>
-            <label className="text-sm text-gray-600 mb-1 block">Número de Documento</label>
+            <label className="text-xs sm:text-sm text-gray-600 mb-1 block">Número de Documento</label>
             {modoEdicion ? (
               <input
                 type="text"
                 name="numero_documento"
                 value={formData.numero_documento}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
               />
             ) : (
-              <p className="font-semibold text-gray-900 text-xl">{documento.numero_documento}</p>
+              <p className="font-semibold text-gray-900 text-lg sm:text-xl">{documento.numero_documento}</p>
             )}
           </div>
 
           <div>
-            <label className="text-sm text-gray-600 mb-1 block">Nombres</label>
+            <label className="text-xs sm:text-sm text-gray-600 mb-1 block">Nombres</label>
             {modoEdicion ? (
               <input
                 type="text"
                 name="nombres"
                 value={formData.nombres}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
               />
             ) : (
-              <p className="font-medium text-gray-900">{documento.nombres || '-'}</p>
+              <p className="font-medium text-gray-900 text-sm sm:text-base">{documento.nombres || '-'}</p>
             )}
           </div>
 
           <div>
-            <label className="text-sm text-gray-600 mb-1 block">Apellidos</label>
+            <label className="text-xs sm:text-sm text-gray-600 mb-1 block">Apellidos</label>
             {modoEdicion ? (
               <input
                 type="text"
                 name="apellidos"
                 value={formData.apellidos}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
               />
             ) : (
-              <p className="font-medium text-gray-900">{documento.apellidos || '-'}</p>
+              <p className="font-medium text-gray-900 text-sm sm:text-base">{documento.apellidos || '-'}</p>
             )}
           </div>
 
-          <div className="md:col-span-2">
-            <label className="text-sm text-gray-600 mb-1 block">Nombre Completo</label>
+          <div className="sm:col-span-2">
+            <label className="text-xs sm:text-sm text-gray-600 mb-1 block">Nombre Completo</label>
             {modoEdicion ? (
               <input
                 type="text"
                 name="nombre_completo"
                 value={formData.nombre_completo}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
               />
             ) : (
-              <p className="font-medium text-gray-900">{documento.nombre_completo || '-'}</p>
+              <p className="font-medium text-gray-900 text-sm sm:text-base">{documento.nombre_completo || '-'}</p>
             )}
           </div>
 
           <div>
-            <label className="text-sm text-gray-600 mb-1 block">Sexo</label>
+            <label className="text-xs sm:text-sm text-gray-600 mb-1 block">Sexo</label>
             {modoEdicion ? (
               <select
                 name="sexo"
                 value={formData.sexo}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
               >
                 <option value="">Seleccionar</option>
                 <option value="M">Masculino</option>
                 <option value="F">Femenino</option>
               </select>
             ) : (
-              <p className="font-medium text-gray-900">
+              <p className="font-medium text-gray-900 text-sm sm:text-base">
                 {documento.sexo ? (documento.sexo === 'M' ? 'Masculino' : 'Femenino') : '-'}
               </p>
             )}
           </div>
 
           <div>
-            <label className="text-sm text-gray-600 mb-1 block">Nacionalidad</label>
+            <label className="text-xs sm:text-sm text-gray-600 mb-1 block">Nacionalidad</label>
             {modoEdicion ? (
               <input
                 type="text"
                 name="nacionalidad"
                 value={formData.nacionalidad}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
               />
             ) : (
-              <p className="font-medium text-gray-900">{documento.nacionalidad || '-'}</p>
+              <p className="font-medium text-gray-900 text-sm sm:text-base">{documento.nacionalidad || '-'}</p>
             )}
           </div>
         </div>
@@ -304,53 +317,53 @@ export default function VerDocumentoIdentidad() {
 
       {/* Fechas del Documento */}
       <Card title="Fechas">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           <div>
-            <label className="text-sm text-gray-600 mb-1 block">Fecha de Nacimiento</label>
+            <label className="text-xs sm:text-sm text-gray-600 mb-1 block">Fecha de Nacimiento</label>
             {modoEdicion ? (
               <input
                 type="date"
                 name="fecha_nacimiento"
                 value={formData.fecha_nacimiento}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
               />
             ) : (
-              <p className="font-medium text-gray-900">
+              <p className="font-medium text-gray-900 text-sm sm:text-base">
                 {documento.fecha_nacimiento ? formatDate(documento.fecha_nacimiento) : '-'}
               </p>
             )}
           </div>
 
           <div>
-            <label className="text-sm text-gray-600 mb-1 block">Fecha de Emisión</label>
+            <label className="text-xs sm:text-sm text-gray-600 mb-1 block">Fecha de Emisión</label>
             {modoEdicion ? (
               <input
                 type="date"
                 name="fecha_emision"
                 value={formData.fecha_emision}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
               />
             ) : (
-              <p className="font-medium text-gray-900">
+              <p className="font-medium text-gray-900 text-sm sm:text-base">
                 {documento.fecha_emision ? formatDate(documento.fecha_emision) : '-'}
               </p>
             )}
           </div>
 
           <div>
-            <label className="text-sm text-gray-600 mb-1 block">Fecha de Vencimiento</label>
+            <label className="text-xs sm:text-sm text-gray-600 mb-1 block">Fecha de Vencimiento</label>
             {modoEdicion ? (
               <input
                 type="date"
                 name="fecha_vencimiento"
                 value={formData.fecha_vencimiento}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
               />
             ) : (
-              <p className="font-medium text-gray-900">
+              <p className="font-medium text-gray-900 text-sm sm:text-base">
                 {documento.fecha_vencimiento ? formatDate(documento.fecha_vencimiento) : '-'}
               </p>
             )}
@@ -360,15 +373,15 @@ export default function VerDocumentoIdentidad() {
 
       {/* Metadata */}
       <Card title="Información del Registro">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           <div>
-            <p className="text-sm text-gray-600 mb-1">Fecha de Registro</p>
-            <p className="font-medium text-gray-900">{formatDate(documento.created_at)}</p>
+            <p className="text-xs sm:text-sm text-gray-600 mb-1">Fecha de Registro</p>
+            <p className="font-medium text-gray-900 text-sm sm:text-base">{formatDate(documento.created_at)}</p>
           </div>
 
           <div>
-            <p className="text-sm text-gray-600 mb-1">Registrado por</p>
-            <p className="font-medium text-gray-900">{documento.created_by || 'admin'}</p>
+            <p className="text-xs sm:text-sm text-gray-600 mb-1">Registrado por</p>
+            <p className="font-medium text-gray-900 text-sm sm:text-base">{documento.created_by || 'admin'}</p>
           </div>
         </div>
       </Card>

@@ -276,186 +276,186 @@ export default function Upload() {
   };
 
   const handleUpload = async () => {
-  if (!empresaSeleccionada) {
-    toast.error('Debes seleccionar una empresa primero');
-    return;
-  }
+    if (!empresaSeleccionada) {
+      toast.error('Debes seleccionar una empresa primero');
+      return;
+    }
 
-  if (!expedienteSeleccionado) {
-    toast.error('Selecciona o crea un expediente');
-    return;
-  }
+    if (!expedienteSeleccionado) {
+      toast.error('Selecciona o crea un expediente');
+      return;
+    }
 
-  if (!archivo) {
-    toast.error('Selecciona un archivo primero');
-    return;
-  }
+    if (!archivo) {
+      toast.error('Selecciona un archivo primero');
+      return;
+    }
 
-  // Validar que expediente temporal requiere OC primero
-  if (esTemporal(expedienteSeleccionado) && tipoSeleccionado !== TIPOS_DOCUMENTO.ORDEN_COMPRA && tipoSeleccionado !== 5) {
-    toast.error('Debes subir primero la Orden de Compra para nombrar el expediente');
-    return;
-  }
+    // Validar que expediente temporal requiere OC primero
+    if (esTemporal(expedienteSeleccionado) && tipoSeleccionado !== TIPOS_DOCUMENTO.ORDEN_COMPRA && tipoSeleccionado !== 5) {
+      toast.error('Debes subir primero la Orden de Compra para nombrar el expediente');
+      return;
+    }
 
-  try {
-    setUploading(true);
-    setShowProgressToast(true);
-    setUploadProgress(0);
-    
-    const progressInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 95) {
-          clearInterval(progressInterval);
-          return 95;
-        }
-        return prev + Math.random() * 15;
-      });
-    }, 500);
+    try {
+      setUploading(true);
+      setShowProgressToast(true);
+      setUploadProgress(0);
+      
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 95) {
+            clearInterval(progressInterval);
+            return 95;
+          }
+          return prev + Math.random() * 15;
+        });
+      }, 500);
 
-    // Si es Documento de Identidad (tipo 5)
-    if (tipoSeleccionado === 5) {
-      const formData = new FormData();
-      formData.append('archivo', archivo);
-      formData.append('expediente_id', expedienteSeleccionado.id);
+      // Si es Documento de Identidad (tipo 5)
+      if (tipoSeleccionado === 5) {
+        const formData = new FormData();
+        formData.append('archivo', archivo);
+        formData.append('expediente_id', expedienteSeleccionado.id);
 
-      const resultado = await documentoIdentidadService.procesar(formData);
+        const resultado = await documentoIdentidadService.procesar(formData);
+        
+        clearInterval(progressInterval);
+        setUploadProgress(100);
+
+        setTimeout(() => {
+          setShowProgressToast(false);
+          setArchivo(null);
+          setPreview(null);
+          
+          toast.success(`✅ Documento de identidad procesado: ${resultado.tipo_documento}`);
+          recargarExpediente(expedienteSeleccionado.id);
+        }, 1000);
+
+        return;
+      }
+      
+      // Procesar con OCR (otros documentos)
+      const resultado = await ocrService.procesarDocumento(
+        archivo,
+        empresa?.id,
+        tipoSeleccionado
+      );
       
       clearInterval(progressInterval);
       setUploadProgress(100);
 
+      // Si es OC y expediente temporal, verificar si ya existe ANTES de asociar
+      if (esTemporal(expedienteSeleccionado) && tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA) {
+        const verificacion = await expedienteService.verificarOC(resultado.numero_documento);
+        
+        if (verificacion.existe) {
+          // Ya existe - Eliminar el documento recién creado y mostrar error
+          try {
+            await ocrService.eliminarDocumento(resultado.documento_id);
+          } catch (e) {
+            console.error('Error eliminando documento:', e);
+          }
+          
+          setShowProgressToast(false);
+          setArchivo(null);
+          setPreview(null);
+          setUploading(false);
+          
+          toast.error(
+            `Ya existe el expediente ${verificacion.codigo_expediente} con la OC ${resultado.numero_documento}. Ve a ese expediente o sube una OC diferente.`,
+            { duration: 10000 }
+          );
+          return; // DETENER aquí
+        }
+      }
+
+      // Asociar al expediente (solo si pasó la verificación)
+      await expedienteService.asociarDocumento(
+        expedienteSeleccionado.id,
+        resultado.documento_id
+      );
+
+      // Si es OC y expediente temporal, actualizar nombre
+      if (esTemporal(expedienteSeleccionado) && tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA) {
+        const expActualizado = await expedienteService.actualizarDesdeOC(
+          expedienteSeleccionado.id,
+          resultado.numero_documento
+        );
+        
+        const expCompleto = await expedienteService.obtener(expedienteSeleccionado.id);
+        setExpedienteSeleccionado(expCompleto);
+        
+        toast.success(`✅ Expediente nombrado: ${expCompleto.codigo_expediente}`);
+      }
+
+      // Verificar completitud
+      const estadoExpediente = await expedienteService.verificarCompletitud(
+        expedienteSeleccionado.id
+      );
+
+      if (estadoExpediente.completo) {
+        toast.success('🎉 ¡Expediente completo!');
+      }
+      
       setTimeout(() => {
         setShowProgressToast(false);
         setArchivo(null);
         setPreview(null);
         
-        toast.success(`✅ Documento de identidad procesado: ${resultado.tipo_documento}`);
-        recargarExpediente(expedienteSeleccionado.id);
-      }, 1000);
-
-      return;
-    }
-    
-    // Procesar con OCR (otros documentos)
-    const resultado = await ocrService.procesarDocumento(
-      archivo,
-      empresa?.id,
-      tipoSeleccionado
-    );
-    
-    clearInterval(progressInterval);
-    setUploadProgress(100);
-
-    // Si es OC y expediente temporal, verificar si ya existe ANTES de asociar
-    if (esTemporal(expedienteSeleccionado) && tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA) {
-      const verificacion = await expedienteService.verificarOC(resultado.numero_documento);
-      
-      if (verificacion.existe) {
-        // Ya existe - Eliminar el documento recién creado y mostrar error
-        try {
-          await ocrService.eliminarDocumento(resultado.documento_id);
-        } catch (e) {
-          console.error('Error eliminando documento:', e);
-        }
+        const tipoNombre = 
+          tipoSeleccionado === TIPOS_DOCUMENTO.FACTURA ? 'Factura' :
+          tipoSeleccionado === TIPOS_DOCUMENTO.GUIA_REMISION ? 'Guía de Remisión' :
+          tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA ? 'Orden de Compra' : 'Documento';
         
-        setShowProgressToast(false);
-        setArchivo(null);
-        setPreview(null);
-        setUploading(false);
-        
-        toast.error(
-          `Ya existe el expediente ${verificacion.codigo_expediente} con la OC ${resultado.numero_documento}. Ve a ese expediente o sube una OC diferente.`,
-          { duration: 10000 }
-        );
-        return; // DETENER aquí
-      }
-    }
-
-    // Asociar al expediente (solo si pasó la verificación)
-    await expedienteService.asociarDocumento(
-      expedienteSeleccionado.id,
-      resultado.documento_id
-    );
-
-    // Si es OC y expediente temporal, actualizar nombre
-    if (esTemporal(expedienteSeleccionado) && tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA) {
-      const expActualizado = await expedienteService.actualizarDesdeOC(
-        expedienteSeleccionado.id,
-        resultado.numero_documento
-      );
-      
-      const expCompleto = await expedienteService.obtener(expedienteSeleccionado.id);
-      setExpedienteSeleccionado(expCompleto);
-      
-      toast.success(`✅ Expediente nombrado: ${expCompleto.codigo_expediente}`);
-    }
-
-    // Verificar completitud
-    const estadoExpediente = await expedienteService.verificarCompletitud(
-      expedienteSeleccionado.id
-    );
-
-    if (estadoExpediente.completo) {
-      toast.success('🎉 ¡Expediente completo!');
-    }
-    
-    setTimeout(() => {
-      setShowProgressToast(false);
-      setArchivo(null);
-      setPreview(null);
-      
-      const tipoNombre = 
-        tipoSeleccionado === TIPOS_DOCUMENTO.FACTURA ? 'Factura' :
-        tipoSeleccionado === TIPOS_DOCUMENTO.GUIA_REMISION ? 'Guía de Remisión' :
-        tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA ? 'Orden de Compra' : 'Documento';
-      
-      toast.success(
-        (t) => (
-          <div className="flex flex-col gap-2">
-            <p className="font-semibold">✅ {tipoNombre} procesada correctamente</p>
-            <p className="text-sm text-gray-600">Puedes seguir agregando más documentos</p>
-            <div className="flex gap-2 mt-2">
-              <button
-                onClick={() => {
-                  toast.dismiss(t.id);
-                  const estadoNavegacion = {
-                    empresaId: empresa.id,
-                    expedienteId: expedienteSeleccionado.id
-                  };
-                  
-                  if (tipoSeleccionado === TIPOS_DOCUMENTO.FACTURA) {
-                    navigate(`/validar/${resultado.documento_id}`, { state: estadoNavegacion });
-                  } else if (tipoSeleccionado === TIPOS_DOCUMENTO.GUIA_REMISION) {
-                    navigate(`/validar-guia/${resultado.documento_id}`, { state: estadoNavegacion });
-                  } else if (tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA) {
-                    navigate(`/validar-orden/${resultado.documento_id}`, { state: estadoNavegacion });
-                  }
-                }}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
-              >
-                Ir a validar
-              </button>
-              <button
-                onClick={() => toast.dismiss(t.id)}
-                className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded text-sm font-medium hover:bg-gray-300"
-              >
-                Continuar aquí
-              </button>
+        toast.success(
+          (t) => (
+            <div className="flex flex-col gap-2">
+              <p className="font-semibold">✅ {tipoNombre} procesada correctamente</p>
+              <p className="text-sm text-gray-600">Puedes seguir agregando más documentos</p>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => {
+                    toast.dismiss(t.id);
+                    const estadoNavegacion = {
+                      empresaId: empresa.id,
+                      expedienteId: expedienteSeleccionado.id
+                    };
+                    
+                    if (tipoSeleccionado === TIPOS_DOCUMENTO.FACTURA) {
+                      navigate(`/validar/${resultado.documento_id}`, { state: estadoNavegacion });
+                    } else if (tipoSeleccionado === TIPOS_DOCUMENTO.GUIA_REMISION) {
+                      navigate(`/validar-guia/${resultado.documento_id}`, { state: estadoNavegacion });
+                    } else if (tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA) {
+                      navigate(`/validar-orden/${resultado.documento_id}`, { state: estadoNavegacion });
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
+                >
+                  Ir a validar
+                </button>
+                <button
+                  onClick={() => toast.dismiss(t.id)}
+                  className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded text-sm font-medium hover:bg-gray-300"
+                >
+                  Continuar aquí
+                </button>
+              </div>
             </div>
-          </div>
-        ),
-        { duration: 8000 }
-      );
-    }, 1000);
-    
-  } catch (error) {
-    setShowProgressToast(false);
-    console.error('Error al procesar:', error);
-    toast.error(error.response?.data?.detail || MENSAJES.UPLOAD_ERROR);
-  } finally {
-    setUploading(false);
-    setUploadProgress(0);
-  }
-};
+          ),
+          { duration: 8000 }
+        );
+      }, 1000);
+      
+    } catch (error) {
+      setShowProgressToast(false);
+      console.error('Error al procesar:', error);
+      toast.error(error.response?.data?.detail || MENSAJES.UPLOAD_ERROR);
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
+  };
 
   const resetearFormulario = () => {
     setEmpresa(null);
@@ -474,29 +474,29 @@ export default function Upload() {
   const esDocumentoIdentidad = tipoSeleccionado === 5;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Subir Documentos</h1>
-        <p className="text-gray-600 mt-1">Valida la empresa, selecciona expediente y sube documentos</p>
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 px-3 sm:px-0 pb-6">
+      <div className="pt-4 sm:pt-0">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Subir Documentos</h1>
+        <p className="text-sm sm:text-base text-gray-600 mt-1">Valida la empresa, selecciona expediente y sube documentos</p>
       </div>
 
       {expedienteSeleccionado && !mostrandoExpedientes && (
-        <div className="p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
-          <div className="flex items-center justify-between">
+        <div className="p-3 sm:p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-blue-900">
+              <p className="text-xs sm:text-sm font-medium text-blue-900">
                 📦 Agregando documentos al expediente
               </p>
-              <p className="text-lg font-bold text-blue-700 mt-1">
+              <p className="text-base sm:text-lg font-bold text-blue-700 mt-1">
                 {expedienteSeleccionado.codigo_expediente}
               </p>
-              <p className="text-sm text-blue-600">
+              <p className="text-xs sm:text-sm text-blue-600">
                 {empresa?.razon_social} (RUC: {empresa?.ruc})
               </p>
             </div>
             <button
               onClick={resetearFormulario}
-              className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors font-medium"
+              className="w-full sm:w-auto px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors font-medium"
             >
               Cambiar Empresa/Expediente
             </button>
@@ -507,20 +507,20 @@ export default function Upload() {
       {expedienteSeleccionado && !mostrandoExpedientes && expedienteSeleccionado.documentos && (
         <Card>
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">
-                Documentos en este expediente ({expedienteSeleccionado.documentos?.length || 0})
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <h3 className="font-semibold text-gray-900 text-sm sm:text-base">
+                Documentos ({expedienteSeleccionado.documentos?.length || 0})
               </h3>
               <button
                 onClick={() => navigate(`/expedientes/${expedienteSeleccionado.id}`)}
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 font-medium"
               >
                 Ver expediente completo →
               </button>
             </div>
             
             {expedienteSeleccionado.documentos && expedienteSeleccionado.documentos.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-2 sm:gap-3">
                 {expedienteSeleccionado.documentos.map((doc) => {
                   const tipoNombre = 
                     doc.tipo_documento_id === 1 ? '📄 Factura' :
@@ -530,18 +530,18 @@ export default function Upload() {
                   return (
                     <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
                       <div>
-                        <p className="font-medium text-gray-900 text-sm">{tipoNombre}</p>
+                        <p className="font-medium text-gray-900 text-xs sm:text-sm">{tipoNombre}</p>
                         <p className="text-xs text-gray-600">{doc.numero_documento}</p>
                       </div>
-                      <div className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
-                        ✓ Agregado
+                      <div className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded shrink-0">
+                        ✓ OK
                       </div>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <p className="text-sm text-gray-500 text-center py-4">
+              <p className="text-xs sm:text-sm text-gray-500 text-center py-4">
                 Aún no hay documentos. Sube el primero.
               </p>
             )}
@@ -549,28 +549,28 @@ export default function Upload() {
             {expedienteSeleccionado.notas_entrega && expedienteSeleccionado.notas_entrega.length > 0 && (
               <>
                 <div className="border-t border-gray-200 pt-3 mt-3">
-                  <h4 className="font-semibold text-gray-900 text-sm mb-2">
+                  <h4 className="font-semibold text-gray-900 text-xs sm:text-sm mb-2">
                     Notas de Entrega ({expedienteSeleccionado.notas_entrega.length})
                   </h4>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-2 sm:gap-3">
                   {expedienteSeleccionado.notas_entrega.map((nota) => (
                     <div key={nota.id} className="flex items-center justify-between p-3 bg-purple-50 rounded-lg border border-purple-200">
                       <div>
-                        <p className="font-medium text-gray-900 text-sm">📦 {nota.numero_nota}</p>
+                        <p className="font-medium text-gray-900 text-xs sm:text-sm">📦 {nota.numero_nota}</p>
                         <p className="text-xs text-gray-600">
                           {new Date(nota.fecha_recepcion).toLocaleDateString()}
                         </p>
                       </div>
-                      <div className={`px-2 py-1 text-xs font-medium rounded ${
+                      <div className={`px-2 py-1 text-xs font-medium rounded shrink-0 ${
                         nota.estado_mercaderia === 'conforme' 
                           ? 'bg-green-100 text-green-800'
                           : nota.estado_mercaderia === 'no_conforme'
                           ? 'bg-red-100 text-red-800'
                           : 'bg-yellow-100 text-yellow-800'
                       }`}>
-                        {nota.estado_mercaderia === 'conforme' ? '✓ Conforme' :
-                        nota.estado_mercaderia === 'no_conforme' ? '✗ No Conforme' : '⚠ Parcial'}
+                        {nota.estado_mercaderia === 'conforme' ? '✓' :
+                        nota.estado_mercaderia === 'no_conforme' ? '✗' : '⚠'}
                       </div>
                     </div>
                   ))}
@@ -588,8 +588,8 @@ export default function Upload() {
             <div className="flex items-start gap-3 text-sm">
               <AlertCircle className="text-blue-500 shrink-0 mt-0.5" size={20} />
               <div className="text-gray-600">
-                <p className="font-medium text-gray-900 mb-1">Paso 1: Seleccionar empresa</p>
-                <p>Busca y selecciona la empresa emisora del documento</p>
+                <p className="font-medium text-gray-900 mb-1 text-sm sm:text-base">Paso 1: Seleccionar empresa</p>
+                <p className="text-xs sm:text-sm">Busca y selecciona la empresa emisora del documento</p>
               </div>
             </div>
 
@@ -612,10 +612,10 @@ export default function Upload() {
                       <button
                         key={emp.id}
                         onClick={() => seleccionarEmpresa(emp)}
-                        className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-all duration-200 hover:shadow-sm"
+                        className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-all duration-200 active:bg-blue-100"
                       >
-                        <p className="font-semibold text-gray-900 text-base">{emp.razon_social}</p>
-                        <p className="text-sm text-gray-500 mt-1">RUC: {emp.ruc}</p>
+                        <p className="font-semibold text-gray-900 text-sm sm:text-base">{emp.razon_social}</p>
+                        <p className="text-xs sm:text-sm text-gray-500 mt-1">RUC: {emp.ruc}</p>
                       </button>
                     ))}
                   </div>
@@ -629,7 +629,7 @@ export default function Upload() {
               </div>
 
               {busquedaEmpresa.length > 0 && busquedaEmpresa.length < 3 && (
-                <p className="text-sm text-gray-500 italic">
+                <p className="text-xs sm:text-sm text-gray-500 italic">
                   Escribe al menos 3 caracteres para buscar
                 </p>
               )}
@@ -640,19 +640,19 @@ export default function Upload() {
 
       {empresaSeleccionada && empresa && !expedienteSeleccionado && (
         <Card>
-          <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-center gap-3 p-3 sm:p-4 bg-green-50 border border-green-200 rounded-lg">
             <div className="shrink-0">
               <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
                 <Check className="text-white" size={24} />
               </div>
             </div>
-            <div className="flex-1">
-              <p className="font-medium text-green-900">{empresa.razon_social}</p>
-              <p className="text-sm text-green-700">RUC: {empresa.ruc}</p>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-green-900 text-sm sm:text-base truncate">{empresa.razon_social}</p>
+              <p className="text-xs sm:text-sm text-green-700">RUC: {empresa.ruc}</p>
             </div>
             <button
               onClick={resetearFormulario}
-              className="px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors font-medium"
+              className="px-3 py-1.5 text-xs sm:text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors font-medium shrink-0"
             >
               Cambiar
             </button>
@@ -667,31 +667,31 @@ export default function Upload() {
             <div className="flex items-start gap-3 text-sm">
               <Package className="text-blue-500 shrink-0 mt-0.5" size={20} />
               <div className="text-gray-600">
-                <p className="font-medium text-gray-900 mb-1">Paso 2: Seleccionar expediente</p>
-                <p>Continúa un expediente incompleto o crea uno nuevo</p>
+                <p className="font-medium text-gray-900 mb-1 text-sm sm:text-base">Paso 2: Seleccionar expediente</p>
+                <p className="text-xs sm:text-sm">Continúa un expediente incompleto o crea uno nuevo</p>
               </div>
             </div>
 
             {expedientesIncompletos.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-sm font-medium text-gray-700">Expedientes incompletos:</p>
+              <div className="space-y-2 sm:space-y-3">
+                <p className="text-xs sm:text-sm font-medium text-gray-700">Expedientes incompletos:</p>
                 {expedientesIncompletos.map((exp) => {
                   const faltantes = obtenerDocumentosFaltantes(exp);
                   return (
                     <button
                       key={exp.id}
                       onClick={() => seleccionarExpediente(exp)}
-                      className="w-full text-left p-4 border-2 border-yellow-200 bg-yellow-50 rounded-lg hover:border-yellow-400 hover:bg-yellow-100 transition-all"
+                      className="w-full text-left p-3 sm:p-4 border-2 border-yellow-200 bg-yellow-50 rounded-lg hover:border-yellow-400 hover:bg-yellow-100 active:bg-yellow-100 transition-all"
                     >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-semibold text-gray-900">{exp.codigo_expediente}</p>
-                          <p className="text-sm text-gray-600 mt-1">OC: {exp.numero_orden_compra}</p>
-                          <p className="text-sm text-yellow-700 mt-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-gray-900 text-sm sm:text-base">{exp.codigo_expediente}</p>
+                          <p className="text-xs sm:text-sm text-gray-600 mt-1">OC: {exp.numero_orden_compra}</p>
+                          <p className="text-xs sm:text-sm text-yellow-700 mt-2">
                             <strong>Faltan:</strong> {faltantes.join(', ')}
                           </p>
                         </div>
-                        <div className="px-3 py-1 bg-yellow-200 text-yellow-800 text-xs font-medium rounded">
+                        <div className="px-2 py-1 bg-yellow-200 text-yellow-800 text-xs font-medium rounded shrink-0">
                           Incompleto
                         </div>
                       </div>
@@ -703,10 +703,10 @@ export default function Upload() {
 
             <button
               onClick={crearNuevoExpediente}
-              className="w-full p-4 border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg hover:border-blue-500 hover:bg-blue-100 transition-all flex items-center justify-center gap-3"
+              className="w-full p-4 sm:p-5 border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg hover:border-blue-500 hover:bg-blue-100 active:bg-blue-100 transition-all flex items-center justify-center gap-3"
             >
               <Plus size={24} className="text-blue-600" />
-              <span className="font-medium text-blue-900">Crear Nuevo Expediente</span>
+              <span className="font-medium text-blue-900 text-sm sm:text-base">Crear Nuevo Expediente</span>
             </button>
           </div>
         </Card>
@@ -719,55 +719,57 @@ export default function Upload() {
             <div className="flex items-start gap-3 text-sm">
               <AlertCircle className="text-blue-500 shrink-0 mt-0.5" size={20} />
               <div className="text-gray-600">
-                <p className="font-medium text-gray-900 mb-1">Paso 3: Selecciona el tipo de documento</p>
-                <p>Elige qué tipo de documento vas a subir</p>
+                <p className="font-medium text-gray-900 mb-1 text-sm sm:text-base">Paso 3: Selecciona el tipo de documento</p>
+                <p className="text-xs sm:text-sm">Elige qué tipo de documento vas a subir</p>
               </div>
             </div>
 
-            {/* Tabs */}
-            <div className="border-b border-gray-200">
-              <nav className="flex -mb-px space-x-8 overflow-x-auto">
-                {/* Orden manual: OC, Doc Identidad, Factura, Guía, Nota */}
-                {[
-                  { id: 3, nombre: 'Orden de Compra' },
-                  { id: 5, nombre: 'Doc. Identidad' },
-                  { id: 1, nombre: 'Factura' },
-                  { id: 2, nombre: 'Guía de Remisión' },
-                  { id: 4, nombre: 'Nota de Entrega' },
-                ].map((tipo) => {
-                  const esActivo = tipo.id === tipoSeleccionado;
+            {/* Tabs - Responsive */}
+            <div className="border-b border-gray-200 -mx-4 sm:mx-0">
+              <div className="flex overflow-x-auto scrollbar-hide px-4 sm:px-0">
+                <nav className="flex -mb-px space-x-4 sm:space-x-8 min-w-max">
+                  {[
+                    { id: 3, nombre: 'OC', nombreCompleto: 'Orden de Compra' },
+                    { id: 5, nombre: 'DNI', nombreCompleto: 'Doc. Identidad' },
+                    { id: 1, nombre: 'Factura', nombreCompleto: 'Factura' },
+                    { id: 2, nombre: 'Guía', nombreCompleto: 'Guía de Remisión' },
+                    { id: 4, nombre: 'Nota', nombreCompleto: 'Nota de Entrega' },
+                  ].map((tipo) => {
+                    const esActivo = tipo.id === tipoSeleccionado;
 
-                  return (
-                    <button
-                      key={tipo.id}
-                      onClick={() => setTipoSeleccionado(tipo.id)}
-                      className={`
-                        py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap
-                        ${esActivo
-                          ? 'border-blue-500 text-blue-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                        }
-                      `}
-                    >
-                      {tipo.nombre}
-                    </button>
-                  );
-                })}
-              </nav>
+                    return (
+                      <button
+                        key={tipo.id}
+                        onClick={() => setTipoSeleccionado(tipo.id)}
+                        className={`
+                          py-3 sm:py-4 px-2 sm:px-3 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap
+                          ${esActivo
+                            ? 'border-blue-500 text-blue-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          }
+                        `}
+                      >
+                        <span className="sm:hidden">{tipo.nombre}</span>
+                        <span className="hidden sm:inline">{tipo.nombreCompleto}</span>
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
             </div>
 
             {/* Información del tipo seleccionado */}
             {tipoActual && (
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-700">
+              <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+                <p className="text-xs sm:text-sm text-gray-700">
                   <span className="font-medium">Seleccionado:</span> {tipoActual.descripcion}
                 </p>
               </div>
             )}
 
             {esDocumentoIdentidad && (
-              <div className="bg-purple-50 p-4 rounded-lg">
-                <p className="text-sm text-purple-900 font-medium">
+              <div className="bg-purple-50 p-3 sm:p-4 rounded-lg">
+                <p className="text-xs sm:text-sm text-purple-900 font-medium">
                   📋 Documento de Identidad del Visitante
                 </p>
                 <p className="text-xs text-purple-700 mt-1">
@@ -798,19 +800,19 @@ export default function Upload() {
             <div className="flex items-start gap-3 text-sm">
               <AlertCircle className="text-blue-500 shrink-0 mt-0.5" size={20} />
               <div className="text-gray-600">
-                <p className="font-medium text-gray-900 mb-1">Paso 4: Sube el documento</p>
-                <p>Elige cómo deseas cargar el documento</p>
+                <p className="font-medium text-gray-900 mb-1 text-sm sm:text-base">Paso 4: Sube el documento</p>
+                <p className="text-xs sm:text-sm">Elige cómo deseas cargar el documento</p>
               </div>
             </div>
 
             {!archivo && (
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <button
                   onClick={() => document.getElementById('camera-input').click()}
-                  className="flex flex-col items-center justify-center p-6 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                  className="flex flex-col items-center justify-center p-6 sm:p-8 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 active:bg-blue-100 transition-colors min-h-30"
                 >
-                  <Camera className="text-gray-400 mb-3" size={32} />
-                  <span className="font-medium text-gray-900">Cámara</span>
+                  <Camera className="text-gray-400 mb-3" size={40} />
+                  <span className="font-medium text-gray-900 text-base">Cámara</span>
                   <span className="text-xs text-gray-500 mt-1">Tomar foto</span>
                 </button>
                 <input
@@ -824,10 +826,10 @@ export default function Upload() {
 
                 <button
                   onClick={() => document.getElementById('image-input').click()}
-                  className="flex flex-col items-center justify-center p-6 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                  className="flex flex-col items-center justify-center p-6 sm:p-8 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 active:bg-blue-100 transition-colors min-h-30"
                 >
-                  <ImageIcon className="text-gray-400 mb-3" size={32} />
-                  <span className="font-medium text-gray-900">Imagen</span>
+                  <ImageIcon className="text-gray-400 mb-3" size={40} />
+                  <span className="font-medium text-gray-900 text-base">Imagen</span>
                   <span className="text-xs text-gray-500 mt-1">JPG, PNG</span>
                 </button>
                 <input
@@ -840,10 +842,10 @@ export default function Upload() {
 
                 <button
                   onClick={() => document.getElementById('pdf-input').click()}
-                  className="flex flex-col items-center justify-center p-6 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                  className="flex flex-col items-center justify-center p-6 sm:p-8 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 active:bg-blue-100 transition-colors min-h-30"
                 >
-                  <FileIcon className="text-gray-400 mb-3" size={32} />
-                  <span className="font-medium text-gray-900">PDF</span>
+                  <FileIcon className="text-gray-400 mb-3" size={40} />
+                  <span className="font-medium text-gray-900 text-base">PDF</span>
                   <span className="text-xs text-gray-500 mt-1">Documento</span>
                 </button>
                 <input
@@ -862,7 +864,7 @@ export default function Upload() {
                 
                 <div
                   className={`
-                    border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer
+                    border-2 border-dashed rounded-lg p-6 sm:p-8 text-center transition-colors cursor-pointer
                     ${dragActive 
                       ? 'border-blue-500 bg-blue-50' 
                       : 'border-gray-300 hover:border-gray-400'
@@ -903,42 +905,42 @@ export default function Upload() {
                     <img 
                       src={preview} 
                       alt="Preview" 
-                      className="max-h-96 mx-auto rounded-lg shadow-md"
+                      className="max-h-80 sm:max-h-96 mx-auto rounded-lg shadow-md w-full object-contain"
                     />
                     <button
                       onClick={handleRemove}
-                      className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                      className="absolute top-2 right-2 p-2 sm:p-3 bg-red-500 text-white rounded-full hover:bg-red-600 active:bg-red-700 transition-colors shadow-lg"
                     >
                       <X size={20} />
                     </button>
                   </div>
                 ) : (
                   <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="p-3 bg-red-100 rounded-lg">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="p-3 bg-red-100 rounded-lg shrink-0">
                         <FileText className="text-red-600" size={24} />
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{archivo.name}</p>
-                        <p className="text-sm text-gray-600">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-gray-900 text-sm truncate">{archivo.name}</p>
+                        <p className="text-xs sm:text-sm text-gray-600">
                           {(archivo.size / (1024 * 1024)).toFixed(2)} MB
                         </p>
                       </div>
                     </div>
                     <button
                       onClick={handleRemove}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
                     >
                       <X size={20} />
                     </button>
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   <button
                     onClick={handleRemove}
                     disabled={uploading}
-                    className="px-4 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-medium disabled:opacity-50 transition-colors"
+                    className="px-4 py-3 sm:py-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 active:bg-gray-400 font-medium disabled:opacity-50 transition-colors text-sm sm:text-base"
                   >
                     Cancelar
                   </button>
@@ -946,19 +948,19 @@ export default function Upload() {
                   <button
                     onClick={handleUpload}
                     disabled={uploading}
-                    className="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                    className="px-4 py-3 sm:py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 active:bg-green-800 font-medium disabled:opacity-50 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
                   >
                     {uploading ? (
                       <>
                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Procesando...
+                        <span>Procesando...</span>
                       </>
                     ) : (
                       <>
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
-                        Procesar con OCR
+                        <span>Procesar</span>
                       </>
                     )}
                   </button>

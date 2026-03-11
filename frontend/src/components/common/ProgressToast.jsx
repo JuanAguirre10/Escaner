@@ -14,11 +14,11 @@ export default function ProgressToast({ message, type = 'info', progress = 0, sh
   if (!visible) return null;
 
   const icons = {
-    success: <CheckCircle className="text-green-500" size={24} />,
-    error: <XCircle className="text-red-500" size={24} />,
-    warning: <AlertCircle className="text-yellow-500" size={24} />,
-    info: <AlertCircle className="text-blue-500" size={24} />,
-    loading: <Loader className="text-blue-500 animate-spin" size={24} />,
+    success: <CheckCircle className="text-green-500" size={20} />,
+    error: <XCircle className="text-red-500" size={20} />,
+    warning: <AlertCircle className="text-yellow-500" size={20} />,
+    info: <AlertCircle className="text-blue-500" size={20} />,
+    loading: <Loader className="text-blue-500 animate-spin" size={20} />,
   };
 
   const bgColors = {
@@ -38,13 +38,13 @@ export default function ProgressToast({ message, type = 'info', progress = 0, sh
   };
 
   return (
-    <div className={`fixed top-4 right-4 z-50 max-w-md w-full ${bgColors[type]} border-2 rounded-lg shadow-lg p-4 animate-slide-in-right`}>
-      <div className="flex items-start gap-3">
+    <div className={`fixed top-4 right-4 left-4 sm:left-auto z-50 max-w-md w-full sm:w-auto ${bgColors[type]} border-2 rounded-lg shadow-lg p-3 sm:p-4 animate-slide-in-right`}>
+      <div className="flex items-start gap-2 sm:gap-3">
         <div className="shrink-0 mt-0.5">{icons[type]}</div>
         <div className="flex-1 min-w-0">
-          <p className={`text-sm font-medium ${textColors[type]}`}>{message}</p>
+          <p className={`text-xs sm:text-sm font-medium ${textColors[type]}`}>{message}</p>
           {showProgress && type === 'loading' && (
-            <div className="mt-3">
+            <div className="mt-2 sm:mt-3">
               <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
                 <span>Procesando documento...</span>
                 <span className="font-medium">{Math.round(progress)}%</span>
@@ -59,7 +59,7 @@ export default function ProgressToast({ message, type = 'info', progress = 0, sh
         </div>
         {type !== 'loading' && (
           <button onClick={() => setVisible(false)} className={`shrink-0 ${textColors[type]} hover:opacity-70`}>
-            <XCircle size={20} />
+            <XCircle size={18} />
           </button>
         )}
       </div>

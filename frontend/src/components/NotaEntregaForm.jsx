@@ -24,16 +24,11 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
 
   const cargarDatosExpediente = async () => {
     try {
-      // Obtener expediente completo con documentos
       const expCompleto = await expedienteService.obtener(expediente.id);
       
-      // Generar número de nota: NE-{numero_orden}
       const numeroNota = `NE-${expCompleto.numero_orden_compra}`;
       
-      // Buscar factura (tipo_documento_id = 1)
       const factura = expCompleto.documentos?.find(d => d.tipo_documento_id === 1);
-      
-      // Buscar guía (tipo_documento_id = 2)
       const guia = expCompleto.documentos?.find(d => d.tipo_documento_id === 2);
       
       setFormData(prev => ({
@@ -68,13 +63,11 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
     try {
       setSaving(true);
       
-      // Crear nota
       await notaEntregaService.crear({
         ...formData,
         expediente_id: expediente.id
       });
 
-      // Verificar completitud del expediente
       const estadoExpediente = await expedienteService.verificarCompletitud(expediente.id);
       
       if (estadoExpediente.completo) {
@@ -83,7 +76,6 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
         toast.success('✅ Nota de entrega creada correctamente');
       }
       
-      // Resetear formulario
       const expCompleto = await expedienteService.obtener(expediente.id);
       const numeroNota = `NE-${expCompleto.numero_orden_compra}`;
       const factura = expCompleto.documentos?.find(d => d.tipo_documento_id === 1);
@@ -101,7 +93,6 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
       });
 
       if (onSuccess) {
-        // Recargar expediente para mostrar la nueva nota
         onSuccess(expediente.id);
       }
     } catch (error) {
@@ -113,17 +104,17 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
       {/* Alerta Informativa */}
-      <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
-        <div className="flex items-start gap-3">
-          <FileText className="text-blue-600 shrink-0 mt-0.5" size={24} />
-          <div>
-            <p className="font-semibold text-blue-900">Nota de Entrega - Registro Manual</p>
-            <p className="text-sm text-blue-700 mt-1">
+      <div className="bg-blue-50 border-l-4 border-blue-500 p-3 sm:p-4 rounded-lg">
+        <div className="flex items-start gap-2 sm:gap-3">
+          <FileText className="text-blue-600 shrink-0 mt-0.5" size={20} />
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-blue-900 text-sm sm:text-base">Nota de Entrega - Registro Manual</p>
+            <p className="text-xs sm:text-sm text-blue-700 mt-1">
               Este documento se completa manualmente para confirmar la recepción de mercadería.
             </p>
-            <p className="text-sm text-blue-700 mt-1">
+            <p className="text-xs sm:text-sm text-blue-700 mt-1 truncate">
               <strong>Expediente:</strong> {expediente.codigo_expediente}
             </p>
           </div>
@@ -132,12 +123,12 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
 
       {/* Información de la Nota */}
       <Card>
-        <div className="flex items-center gap-3 mb-4">
-          <FileText className="text-blue-600" size={24} />
-          <h3 className="text-lg font-semibold">Información de la Nota</h3>
+        <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+          <FileText className="text-blue-600" size={20} />
+          <h3 className="text-base sm:text-lg font-semibold">Información de la Nota</h3>
         </div>
         
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <Input
             label="Número de Nota *"
             value={formData.numero_nota}
@@ -145,7 +136,7 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
             placeholder="NE-001"
             required
             disabled
-            className="bg-gray-100"
+            className="bg-gray-100 text-sm"
           />
           
           <Input
@@ -154,6 +145,7 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
             value={formData.fecha_recepcion}
             onChange={(e) => handleChange('fecha_recepcion', e.target.value)}
             required
+            className="text-sm"
           />
           
           <Input
@@ -161,16 +153,17 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
             value={formData.recibido_por}
             onChange={(e) => handleChange('recibido_por', e.target.value)}
             placeholder="Nombre de quien recibe"
+            className="text-sm"
           />
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
               Estado de Mercadería *
             </label>
             <select
               value={formData.estado_mercaderia}
               onChange={(e) => handleChange('estado_mercaderia', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               required
             >
               <option value="conforme">Conforme</option>
@@ -183,17 +176,17 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
 
       {/* Referencias */}
       <Card>
-        <div className="flex items-center gap-3 mb-4">
-          <FileText className="text-green-600" size={24} />
-          <h3 className="text-lg font-semibold">Referencias del Expediente</h3>
+        <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+          <FileText className="text-green-600" size={20} />
+          <h3 className="text-base sm:text-lg font-semibold">Referencias del Expediente</h3>
         </div>
         
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <Input
             label="N° Orden de Compra"
             value={formData.orden_compra_numero}
             disabled
-            className="bg-gray-100"
+            className="bg-gray-100 text-sm"
           />
           
           <Input
@@ -202,7 +195,7 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
             onChange={(e) => handleChange('factura_numero', e.target.value)}
             placeholder="F001-12345"
             disabled
-            className="bg-gray-100"
+            className="bg-gray-100 text-sm"
           />
           
           <Input
@@ -211,7 +204,7 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
             onChange={(e) => handleChange('guia_numero', e.target.value)}
             placeholder="T001-6789"
             disabled
-            className="bg-gray-100"
+            className="bg-gray-100 text-sm"
           />
         </div>
       </Card>
@@ -223,7 +216,7 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
           onChange={(e) => handleChange('observaciones', e.target.value)}
           rows={4}
           placeholder="Observaciones sobre la recepción de mercadería..."
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
         />
       </Card>
 
@@ -233,9 +226,9 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
           type="submit"
           variant="success"
           disabled={saving}
-          className="flex items-center gap-2"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 text-sm sm:text-base"
         >
-          <Save size={20} />
+          <Save size={18} />
           {saving ? 'Guardando...' : 'Guardar Nota de Entrega'}
         </Button>
       </div>
