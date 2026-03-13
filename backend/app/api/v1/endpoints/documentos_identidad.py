@@ -45,21 +45,24 @@ async def procesar_documento_identidad(
             detail=f"Expediente con ID {expediente_id} no encontrado"
         )
     
-    # Guardar archivo temporalmente
-    upload_dir = Path(settings.UPLOAD_DIR)
-    upload_dir.mkdir(parents=True, exist_ok=True)
+    # Crear carpeta para documentos de identidad
+    docs_identidad_dir = settings.upload_path / "documentos_identidad"
+    docs_identidad_dir.mkdir(parents=True, exist_ok=True)
     
+    # Nombre único para el archivo
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_ext = archivo.filename.split(".")[-1].lower()
     filename = f"identidad_{timestamp}_{archivo.filename}"
-    ruta_temporal = upload_dir / filename
+    ruta_archivo = docs_identidad_dir / filename
     
     try:
-        with open(ruta_temporal, "wb") as buffer:
+        # Guardar archivo PERMANENTEMENTE
+        with open(ruta_archivo, "wb") as buffer:
             shutil.copyfileobj(archivo.file, buffer)
         
         # Procesar con OCR
         extractor = ClaudeExtractor()
-        datos_ocr = extractor.extraer_datos_identidad(ruta_temporal)
+        datos_ocr = extractor.extraer_datos_identidad(str(ruta_archivo))
         
         # Convertir fechas a strings para JSONB
         datos_ocr_json = datos_ocr.copy()
@@ -67,7 +70,7 @@ async def procesar_documento_identidad(
             if datos_ocr_json.get(campo):
                 datos_ocr_json[campo] = str(datos_ocr_json[campo])
         
-        # Crear registro en base de datos
+        # Crear registro en base de datos CON archivo_url
         doc_identidad = DocumentoIdentidad(
             expediente_id=expediente_id,
             tipo_documento=datos_ocr.get('tipo_documento'),
@@ -83,6 +86,8 @@ async def procesar_documento_identidad(
             motivo_visita=motivo_visita,
             empresa_visitante=empresa_visitante,
             cargo=cargo,
+            archivo_url=str(ruta_archivo),  # 👈 GUARDAR RUTA
+            archivo_tipo=file_ext,          # 👈 GUARDAR TIPO
             datos_ocr_completos=datos_ocr_json,
             created_by='admin'
         )
@@ -91,18 +96,20 @@ async def procesar_documento_identidad(
         db.commit()
         db.refresh(doc_identidad)
         
+        print(f"✅ Doc identidad guardado: {filename}")
+        print(f"   Ruta: {ruta_archivo}")
+        
         return doc_identidad
         
     except Exception as e:
         db.rollback()
+        # Si falla, eliminar archivo
+        if ruta_archivo.exists():
+            ruta_archivo.unlink()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error procesando documento: {str(e)}"
         )
-    finally:
-        # Limpiar archivo temporal
-        if ruta_temporal.exists():
-            ruta_temporal.unlink()
 
 
 @router.get("/expediente/{expediente_id}", response_model=List[DocumentoIdentidadResponse])

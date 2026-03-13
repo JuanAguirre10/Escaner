@@ -40,6 +40,10 @@ class DocumentoIdentidad(Base):
     empresa_visitante = Column(String(200))
     cargo = Column(String(100))
     
+    # Archivo subido
+    archivo_url = Column(Text, nullable=True)
+    archivo_tipo = Column(String(10), nullable=True)
+    
     # OCR completo
     datos_ocr_completos = Column(JSONB)
     

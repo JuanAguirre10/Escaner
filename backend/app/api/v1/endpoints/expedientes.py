@@ -215,12 +215,17 @@ def obtener_estado_expediente(
     }
 
 
-@router.get("/{expediente_id}", response_model=ExpedienteDetalle)
+@router.get("/{expediente_id}")
 def obtener_expediente(
     expediente_id: int,
     db: Session = Depends(get_db)
 ):
-    """Obtiene un expediente con todos sus documentos"""
+    """
+    Obtiene un expediente completo con:
+    - Documentos (facturas, guías, OC, notas de entrega) con archivo_original_url
+    - Notas de entrega (legado)
+    - Documentos de identidad con archivo_url
+    """
     expediente = db.query(Expediente).options(
         joinedload(Expediente.documentos),
         joinedload(Expediente.notas_entrega)
@@ -232,7 +237,77 @@ def obtener_expediente(
             detail=f"Expediente con ID {expediente_id} no encontrado"
         )
     
-    return expediente
+    # Obtener documentos de identidad si la relación existe
+    documentos_identidad_list = []
+    if hasattr(expediente, 'documentos_identidad') and expediente.documentos_identidad:
+        documentos_identidad_list = [
+            {
+                "id": doc.id,
+                "tipo_documento": doc.tipo_documento,
+                "numero_documento": doc.numero_documento,
+                "nombres": doc.nombres,
+                "apellidos": doc.apellidos,
+                "nombre_completo": doc.nombre_completo,
+                "archivo_url": doc.archivo_url if hasattr(doc, 'archivo_url') else None,
+                "archivo_tipo": doc.archivo_tipo if hasattr(doc, 'archivo_tipo') else None,
+            }
+            for doc in expediente.documentos_identidad
+            if not hasattr(doc, 'deleted_at') or doc.deleted_at is None
+        ]
+    
+    # Construir respuesta completa con TODOS los campos
+    return {
+        "id": expediente.id,
+        "codigo_expediente": expediente.codigo_expediente,
+        "numero_orden_compra": expediente.numero_orden_compra,
+        "estado": expediente.estado,
+        "fecha_creacion": expediente.fecha_creacion,
+        "fecha_cierre": expediente.fecha_cierre,
+        "cerrado_manualmente": expediente.cerrado_manualmente,
+        "motivo_cierre": expediente.motivo_cierre,
+        "observaciones": expediente.observaciones,
+        "empresa_id": expediente.empresa_id if hasattr(expediente, 'empresa_id') else None,
+        
+        # Documentos COMPLETOS con archivo_original_url
+        "documentos": [
+            {
+                "id": doc.id,
+                "tipo_documento_id": doc.tipo_documento_id,
+                "numero_documento": doc.numero_documento,
+                "serie": doc.serie if hasattr(doc, 'serie') else "",
+                "correlativo": doc.correlativo if hasattr(doc, 'correlativo') else "",
+                "fecha_emision": doc.fecha_emision,
+                "total": float(doc.total) if doc.total else None,
+                "moneda": doc.moneda if hasattr(doc, 'moneda') else None,
+                "estado": doc.estado,
+                "archivo_original_nombre": doc.archivo_original_nombre,
+                "archivo_original_url": doc.archivo_original_url,
+                "archivo_original_tipo": doc.archivo_original_tipo,
+                "ruc_emisor": doc.ruc_emisor if hasattr(doc, 'ruc_emisor') else None,
+                "razon_social_emisor": doc.razon_social_emisor if hasattr(doc, 'razon_social_emisor') else None,
+            }
+            for doc in expediente.documentos if not hasattr(doc, 'deleted_at') or doc.deleted_at is None
+        ],
+        
+        # Notas de entrega (legado)
+        "notas_entrega": [
+            {
+                "id": nota.id,
+                "numero_nota": nota.numero_nota,
+                "fecha_recepcion": nota.fecha_recepcion,
+                "recibido_por": nota.recibido_por if hasattr(nota, 'recibido_por') else None,
+                "estado_mercaderia": nota.estado_mercaderia if hasattr(nota, 'estado_mercaderia') else None,
+                "orden_compra_numero": nota.orden_compra_numero if hasattr(nota, 'orden_compra_numero') else None,
+                "factura_numero": nota.factura_numero if hasattr(nota, 'factura_numero') else None,
+                "guia_numero": nota.guia_numero if hasattr(nota, 'guia_numero') else None,
+                "observaciones": nota.observaciones if hasattr(nota, 'observaciones') else None,
+            }
+            for nota in expediente.notas_entrega
+        ],
+        
+        # Documentos de identidad
+        "documentos_identidad": documentos_identidad_list,
+    }
 
 
 @router.post("/", response_model=ExpedienteResponse, status_code=status.HTTP_201_CREATED)
@@ -448,7 +523,7 @@ async def descargar_expediente_zip(
     expediente_id: int,
     db: Session = Depends(get_db)
 ):
-    """Descarga todos los documentos del expediente en un ZIP"""
+    """Descarga todos los documentos del expediente en un ZIP (incluye docs de identidad)"""
     
     expediente = db.query(Expediente).options(
         joinedload(Expediente.documentos)
@@ -466,22 +541,23 @@ async def descargar_expediente_zip(
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
         archivos_agregados = 0
         
+        # ============================================
+        # DOCUMENTOS NORMALES (Facturas, Guías, OC, Notas)
+        # ============================================
         for documento in expediente.documentos:
             if documento.archivo_original_url:
-                # La URL es una ruta ABSOLUTA completa
                 archivo_path = documento.archivo_original_url
                 
                 print(f"🔍 Buscando archivo: {archivo_path}")
                 
                 if os.path.exists(archivo_path):
-                    # Nombre del archivo en el ZIP
                     tipo_nombre = {
                         1: "Factura",
                         2: "Guia_Remision",
-                        3: "Orden_Compra"
+                        3: "Orden_Compra",
+                        4: "Nota_Entrega"
                     }.get(documento.tipo_documento_id, "Documento")
                     
-                    # Usar el nombre original o crear uno
                     if documento.archivo_original_nombre:
                         extension = os.path.splitext(documento.archivo_original_nombre)[1]
                     else:
@@ -489,7 +565,6 @@ async def descargar_expediente_zip(
                     
                     nombre_en_zip = f"{tipo_nombre}_{documento.numero_documento}{extension}"
                     
-                    # Agregar archivo al ZIP
                     try:
                         with open(archivo_path, 'rb') as f:
                             zip_file.writestr(nombre_en_zip, f.read())
@@ -499,6 +574,39 @@ async def descargar_expediente_zip(
                         print(f"❌ Error agregando {archivo_path}: {str(e)}")
                 else:
                     print(f"❌ Archivo no encontrado: {archivo_path}")
+        
+        # ============================================
+        # DOCUMENTOS DE IDENTIDAD
+        # ============================================
+        documentos_identidad = []
+        if hasattr(expediente, 'documentos_identidad') and expediente.documentos_identidad:
+            documentos_identidad = expediente.documentos_identidad
+        
+        for doc_id in documentos_identidad:
+            if hasattr(doc_id, 'archivo_url') and doc_id.archivo_url:
+                archivo_path = doc_id.archivo_url
+                
+                print(f"🔍 Buscando doc identidad: {archivo_path}")
+                
+                if os.path.exists(archivo_path):
+                    tipo_doc = doc_id.tipo_documento.replace(" ", "_") if hasattr(doc_id, 'tipo_documento') else "DocIdentidad"
+                    numero = doc_id.numero_documento if hasattr(doc_id, 'numero_documento') else "SN"
+                    extension = doc_id.archivo_tipo if hasattr(doc_id, 'archivo_tipo') else "pdf"
+                    
+                    if not extension.startswith('.'):
+                        extension = f".{extension}"
+                    
+                    nombre_en_zip = f"{tipo_doc}_{numero}{extension}"
+                    
+                    try:
+                        with open(archivo_path, 'rb') as f:
+                            zip_file.writestr(nombre_en_zip, f.read())
+                        archivos_agregados += 1
+                        print(f"✅ Agregado doc identidad: {nombre_en_zip}")
+                    except Exception as e:
+                        print(f"❌ Error agregando doc identidad {archivo_path}: {str(e)}")
+                else:
+                    print(f"❌ Archivo doc identidad no encontrado: {archivo_path}")
         
         # Si no se agregó ningún archivo, agregar un archivo de texto
         if archivos_agregados == 0:

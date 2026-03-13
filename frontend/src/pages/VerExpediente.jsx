@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, FileText, Truck, ClipboardCheck, Download, Eye, Upload, Trash2, Lock, Unlock, User, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Package, FileText, Truck, ClipboardCheck, Download, Eye, Upload, Trash2, Lock, Unlock, User, X, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, Loading, Badge } from '../components/common';
 import { expedienteService } from '../services/expedienteService';
@@ -16,7 +16,10 @@ export default function VerExpediente() {
   const [mostrarModalCerrar, setMostrarModalCerrar] = useState(false);
   const [motivoCierre, setMotivoCierre] = useState('');
   const [cerrando, setCerrando] = useState(false);
-  const [mostrarMenuAcciones, setMostrarMenuAcciones] = useState(false);
+  
+  // Estados para visualización de archivos
+  const [mostrarModalArchivo, setMostrarModalArchivo] = useState(false);
+  const [archivoActual, setArchivoActual] = useState(null);
 
   useEffect(() => {
     cargarExpediente();
@@ -35,10 +38,55 @@ export default function VerExpediente() {
     }
   };
 
+  const getUrlArchivo = (archivoUrl) => {
+    console.log('🔍 URL recibida:', archivoUrl);
+    
+    if (!archivoUrl) {
+      console.error('❌ URL es null o undefined');
+      return null;
+    }
+    
+    // Si ya es una URL completa, retornarla
+    if (archivoUrl.startsWith('http')) {
+      console.log('✅ URL completa:', archivoUrl);
+      return archivoUrl;
+    }
+    
+    // Convertir ruta de Windows a URL del servidor
+    let rutaRelativa = archivoUrl;
+    
+    // Quitar prefijos comunes
+    const prefijos = [
+      'C:\\Proyectos\\sistema-facturas\\backend',
+      'C:/Proyectos/sistema-facturas/backend',
+      '/home/claude/backend',
+      'backend'
+    ];
+    
+    for (const prefijo of prefijos) {
+      if (rutaRelativa.includes(prefijo)) {
+        rutaRelativa = rutaRelativa.replace(prefijo, '');
+        break;
+      }
+    }
+    
+    // Convertir backslashes a forward slashes
+    rutaRelativa = rutaRelativa.replace(/\\/g, '/');
+    
+    // Asegurar que empiece con /
+    if (!rutaRelativa.startsWith('/')) {
+      rutaRelativa = '/' + rutaRelativa;
+    }
+    
+    const urlFinal = `http://192.168.2.47:8000${rutaRelativa}`;
+    console.log('✅ URL final:', urlFinal);
+    return urlFinal;
+  };
+
   const descargarZip = async () => {
     try {
       const response = await fetch(
-        `http://192.168.100.24:8000/api/v1/expedientes/${id}/descargar-zip`,
+        `http://192.168.2.47:8000/api/v1/expedientes/${id}/descargar-zip`,
         {
           method: 'GET',
         }
@@ -62,6 +110,72 @@ export default function VerExpediente() {
     } catch (error) {
       console.error('Error descargando ZIP:', error);
       toast.error('Error al descargar el expediente');
+    }
+  };
+
+  const descargarDocumento = async (doc) => {
+    try {
+      const url = getUrlArchivo(doc.archivo_original_url);
+      
+      if (!url) {
+        toast.error('URL del archivo no disponible');
+        return;
+      }
+      
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Error al descargar');
+      
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = doc.archivo_original_nombre || 'documento.pdf';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(a);
+      
+      toast.success('Documento descargado');
+    } catch (error) {
+      console.error('Error descargando documento:', error);
+      toast.error('Error al descargar el documento');
+    }
+  };
+
+  const verArchivo = (doc) => {
+    const url = getUrlArchivo(doc.archivo_original_url);
+    
+    if (!url) {
+      toast.error('URL del archivo no disponible');
+      return;
+    }
+    
+    setArchivoActual({
+      nombre: doc.archivo_original_nombre,
+      url: url,
+      tipo: getTipoDocumento(doc.tipo_documento_id),
+      numero: doc.numero_documento,
+      extension: doc.archivo_original_tipo
+    });
+    setMostrarModalArchivo(true);
+  };
+
+  const irAFormulario = (doc) => {
+    // Redirigir al formulario según el tipo de documento
+    if (doc.tipo_documento_id === 3) {
+      navigate(`/validar-orden/${doc.id}`);
+    } else if (doc.tipo_documento_id === 2) {
+      navigate(`/validar-guia/${doc.id}`);
+    } else if (doc.tipo_documento_id === 4) {
+      // Nota de entrega - buscar en notas_entrega por numero_nota
+      const notaEntrega = expediente.notas_entrega?.find(n => n.numero_nota === doc.numero_documento);
+      if (notaEntrega) {
+        navigate(`/notas-entrega/${notaEntrega.id}`);
+      } else {
+        toast.error('No se encontró el formulario de la nota');
+      }
+    } else {
+      navigate(`/validar/${doc.id}`);
     }
   };
 
@@ -120,6 +234,8 @@ export default function VerExpediente() {
       case 1: return 'Factura';
       case 2: return 'Guía de Remisión';
       case 3: return 'Orden de Compra';
+      case 4: return 'Nota de Entrega';
+      case 5: return 'Doc. Identidad';
       default: return 'Desconocido';
     }
   };
@@ -129,6 +245,8 @@ export default function VerExpediente() {
       case 1: return <FileText className="text-green-600" size={18} />;
       case 2: return <Truck className="text-orange-600" size={18} />;
       case 3: return <Package className="text-blue-600" size={18} />;
+      case 4: return <ClipboardCheck className="text-purple-600" size={18} />;
+      case 5: return <User className="text-indigo-600" size={18} />;
       default: return <FileText className="text-gray-600" size={18} />;
     }
   };
@@ -252,7 +370,7 @@ export default function VerExpediente() {
             className="flex items-center justify-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 active:bg-green-800 transition-colors text-sm"
           >
             <Download size={16} />
-            Descargar
+            ZIP
           </button>
 
           {expediente.estado !== 'completo' && !expediente.cerrado_manualmente && (
@@ -281,7 +399,7 @@ export default function VerExpediente() {
               className="flex items-center justify-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 active:bg-red-800 transition-colors text-sm col-span-2"
             >
               <Trash2 size={16} />
-              Eliminar Expediente
+              Eliminar
             </button>
           ) : (
             <>
@@ -325,9 +443,18 @@ export default function VerExpediente() {
         </div>
       </Card>
 
-      {/* Documentos */}
+      {/* DEBUG - TEMPORAL */}
+      {expediente.documentos && expediente.documentos.length > 0 && (
+        <div className="p-4 bg-yellow-100 border border-yellow-300 rounded text-xs mb-4">
+          <p className="font-bold mb-2">DEBUG - Primer documento:</p>
+          <pre className="overflow-auto max-h-40">{JSON.stringify(expediente.documentos[0], null, 2)}</pre>
+        </div>
+      )}
+
+      {/* TODOS LOS DOCUMENTOS (Facturas, Guías, OC, Notas, DNI) */}
       <Card title="Documentos del Expediente">
         <div className="space-y-2 sm:space-y-3">
+          {/* Documentos normales */}
           {expediente.documentos && expediente.documentos.length > 0 ? (
             expediente.documentos.map((doc) => (
               <div
@@ -343,29 +470,129 @@ export default function VerExpediente() {
                     <p className="text-xs sm:text-sm text-gray-600 truncate">{doc.numero_documento}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 sm:gap-3 justify-between sm:justify-end">
+                <div className="flex items-center gap-2 justify-end flex-wrap">
                   <Badge variant={doc.estado === 'validada' ? 'success' : 'warning'} className="text-xs">
                     {doc.estado}
                   </Badge>
+                  
                   <button
-                    onClick={() => {
-                      if (doc.tipo_documento_id === 3) {
-                        navigate(`/validar-orden/${doc.id}`);
-                      } else if (doc.tipo_documento_id === 2) {
-                        navigate(`/validar-guia/${doc.id}`);
-                      } else {
-                        navigate(`/validar/${doc.id}`);
-                      }
-                    }}
-                    className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors text-xs sm:text-sm font-medium"
+                    onClick={() => verArchivo(doc)}
+                    className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors text-xs sm:text-sm font-medium"
                   >
                     <Eye size={14} />
-                    Ver
+                    <span className="hidden sm:inline">Ver</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => descargarDocumento(doc)}
+                    className="flex items-center gap-1 px-2 sm:px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors text-xs sm:text-sm font-medium"
+                  >
+                    <Download size={14} />
+                  </button>
+                  
+                  <button
+                    onClick={() => irAFormulario(doc)}
+                    className="flex items-center gap-1 px-2 sm:px-3 py-1.5 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 active:bg-blue-100 transition-colors text-xs sm:text-sm font-medium"
+                  >
+                    <ExternalLink size={14} />
                   </button>
                 </div>
               </div>
             ))
-          ) : (
+          ) : null}
+
+          {/* Documentos de Identidad (en el mismo card) */}
+          {expediente.documentos_identidad && expediente.documentos_identidad.length > 0 && (
+            expediente.documentos_identidad.map((doc) => (
+              <div
+                key={`dni-${doc.id}`}
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors gap-2 sm:gap-0"
+              >
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                  <User className="text-purple-600 shrink-0" size={18} />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-gray-900 text-sm sm:text-base">{doc.tipo_documento}</p>
+                    <p className="text-xs sm:text-sm text-gray-600">{doc.numero_documento}</p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {doc.nombre_completo || `${doc.nombres} ${doc.apellidos}`}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2 justify-end flex-wrap">
+                  <Badge variant="info" className="text-xs">Doc. Identidad</Badge>
+                  
+                  {doc.archivo_url && (
+                    <>
+                      <button
+                        onClick={() => {
+                          const url = getUrlArchivo(doc.archivo_url);
+                          if (url) {
+                            setArchivoActual({
+                              nombre: `${doc.tipo_documento}_${doc.numero_documento}`,
+                              url: url,
+                              tipo: doc.tipo_documento,
+                              numero: doc.numero_documento,
+                              extension: doc.archivo_tipo || 'pdf'
+                            });
+                            setMostrarModalArchivo(true);
+                          } else {
+                            toast.error('URL del archivo no disponible');
+                          }
+                        }}
+                        className="flex items-center gap-1 px-2 sm:px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors text-xs sm:text-sm font-medium"
+                      >
+                        <Eye size={14} />
+                        <span className="hidden sm:inline">Ver</span>
+                      </button>
+                      
+                      <button
+                        onClick={async () => {
+                          try {
+                            const url = getUrlArchivo(doc.archivo_url);
+                            if (!url) {
+                              toast.error('URL no disponible');
+                              return;
+                            }
+                            
+                            const response = await fetch(url);
+                            if (!response.ok) throw new Error('Error');
+                            
+                            const blob = await response.blob();
+                            const downloadUrl = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = downloadUrl;
+                            a.download = `${doc.tipo_documento}_${doc.numero_documento}.${doc.archivo_tipo || 'pdf'}`;
+                            document.body.appendChild(a);
+                            a.click();
+                            window.URL.revokeObjectURL(downloadUrl);
+                            document.body.removeChild(a);
+                            toast.success('Descargado');
+                          } catch (error) {
+                            toast.error('Error al descargar');
+                          }
+                        }}
+                        className="flex items-center gap-1 px-2 sm:px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors text-xs sm:text-sm font-medium"
+                      >
+                        <Download size={14} />
+                      </button>
+                    </>
+                  )}
+                  
+                  <button
+                    onClick={() => navigate(`/documento-identidad/${doc.id}`)}
+                    className="flex items-center gap-1 px-2 sm:px-3 py-1.5 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 active:bg-blue-100 transition-colors text-xs sm:text-sm font-medium"
+                  >
+                    <ExternalLink size={14} />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+
+          {/* Mensaje si no hay documentos */}
+          {(!expediente.documentos || expediente.documentos.length === 0) && 
+           (!expediente.documentos_identidad || expediente.documentos_identidad.length === 0) && (
             <div className="text-center py-8">
               <FileText className="mx-auto text-gray-400 mb-3" size={40} />
               <p className="text-sm sm:text-base text-gray-500 mb-4">No hay documentos en este expediente</p>
@@ -381,11 +608,11 @@ export default function VerExpediente() {
         </div>
       </Card>
 
-      {/* Notas de Entrega */}
-      <Card title="Notas de Entrega">
-        <div className="space-y-2 sm:space-y-3">
-          {expediente.notas_entrega && expediente.notas_entrega.length > 0 ? (
-            expediente.notas_entrega.map((nota) => (
+      {/* Notas de Entrega (Legado) */}
+      {expediente.notas_entrega && expediente.notas_entrega.length > 0 && (
+        <Card title="Notas de Entrega (Legado)">
+          <div className="space-y-2 sm:space-y-3">
+            {expediente.notas_entrega.map((nota) => (
               <div
                 key={nota.id}
                 className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors gap-2 sm:gap-0"
@@ -415,48 +642,20 @@ export default function VerExpediente() {
                   </button>
                 </div>
               </div>
-            ))
-          ) : (
-            <p className="text-xs sm:text-sm text-gray-500 text-center py-4">No hay notas de entrega</p>
-          )}
-        </div>
-      </Card>
+            ))}
+          </div>
+        </Card>
+      )}
 
-      {/* Documentos de Identidad */}
-      <Card title="Documentos de Identidad">
-        <div className="space-y-2 sm:space-y-3">
-          {expediente.documentos_identidad && expediente.documentos_identidad.length > 0 ? (
-            expediente.documentos_identidad.map((doc) => (
-              <div
-                key={doc.id}
-                className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors gap-2 sm:gap-0"
-              >
-                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                  <User className="text-purple-600 shrink-0" size={18} />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-gray-900 text-sm sm:text-base">{doc.tipo_documento}</p>
-                    <p className="text-xs sm:text-sm text-gray-600">{doc.numero_documento}</p>
-                    <p className="text-xs text-gray-500 truncate">
-                      {doc.nombre_completo || `${doc.nombres} ${doc.apellidos}`}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-end">
-                  <button
-                    onClick={() => navigate(`/documento-identidad/${doc.id}`)}
-                    className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors text-xs sm:text-sm font-medium"
-                  >
-                    <Eye size={14} />
-                    Ver
-                  </button>
-                </div>
-              </div>
-            ))
-          ) : (
-            <p className="text-xs sm:text-sm text-gray-500 text-center py-4">No hay documentos de identidad registrados</p>
-          )}
+      {/* DEBUG - Documentos Identidad */}
+      {expediente.documentos_identidad && expediente.documentos_identidad.length > 0 && (
+        <div className="p-4 bg-green-100 border border-green-300 rounded text-xs mb-4">
+          <p className="font-bold mb-2">DEBUG - Primer doc identidad:</p>
+          <pre className="overflow-auto max-h-40">{JSON.stringify(expediente.documentos_identidad[0], null, 2)}</pre>
         </div>
-      </Card>
+      )}
+
+      
 
       {/* Observaciones */}
       {expediente.observaciones && (
@@ -505,6 +704,49 @@ export default function VerExpediente() {
               >
                 {cerrando ? 'Cerrando...' : 'Cerrar'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Visualizar Archivo */}
+      {mostrarModalArchivo && archivoActual && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-5xl h-[90vh] flex flex-col">
+            {/* Header del modal */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-bold text-gray-900 truncate">{archivoActual.tipo}</h3>
+                <p className="text-sm text-gray-600 truncate">{archivoActual.numero}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setMostrarModalArchivo(false);
+                  setArchivoActual(null);
+                }}
+                className="ml-4 p-2 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            {/* Visor de archivo */}
+            <div className="flex-1 overflow-hidden bg-gray-100">
+              {archivoActual.extension === 'pdf' ? (
+                <iframe
+                  src={archivoActual.url}
+                  className="w-full h-full"
+                  title={`Vista de ${archivoActual.nombre}`}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center p-4">
+                  <img 
+                    src={archivoActual.url} 
+                    alt={archivoActual.nombre}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>

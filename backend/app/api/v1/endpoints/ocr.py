@@ -47,13 +47,30 @@ def validar_archivo(file: UploadFile) -> None:
 # HELPER: GUARDAR ARCHIVO
 # ==================================
 
-def guardar_archivo(file: UploadFile, upload_dir: Path) -> tuple[str, Path, int]:
+def guardar_archivo(file: UploadFile, tipo_documento_id: int) -> tuple[str, Path, int]:
     """
-    Guarda el archivo en el disco
+    Guarda el archivo en el disco según el tipo de documento
+    
+    Args:
+        file: Archivo subido
+        tipo_documento_id: 1=FACTURA, 2=GUIA, 3=OC, 4=NOTA_ENTREGA, 5=DOC_IDENTIDAD
     
     Returns:
         tuple: (nombre_archivo, ruta_completa, tamaño_bytes)
     """
+    # Determinar carpeta según tipo
+    carpetas = {
+        1: "facturas",
+        2: "guias_remision",
+        3: "ordenes_compra",
+        4: "notas_entrega",
+        5: "documentos_identidad"
+    }
+    
+    carpeta = carpetas.get(tipo_documento_id, "otros")
+    upload_dir = settings.upload_path / carpeta
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
     # Crear nombre único
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     file_ext = file.filename.split(".")[-1].lower()
@@ -67,8 +84,9 @@ def guardar_archivo(file: UploadFile, upload_dir: Path) -> tuple[str, Path, int]
     # Obtener tamaño
     tamaño = ruta_archivo.stat().st_size
     
+    print(f"✅ Archivo guardado en: {ruta_archivo}")
+    
     return nombre_archivo, ruta_archivo, tamaño
-
 
 # ==================================
 # ENDPOINT: SUBIR Y PROCESAR DOCUMENTO
@@ -109,7 +127,7 @@ async def procesar_documento(
     # 2. Guardar archivo
     nombre_archivo, ruta_archivo, tamaño = guardar_archivo(
         file, 
-        settings.upload_path
+        tipo_documento_id 
     )
     
     try:
@@ -130,6 +148,13 @@ async def procesar_documento(
             
             tiempo_procesamiento = (datetime.now() - inicio_procesamiento).total_seconds()
             
+            # 👇 VALIDACIÓN CRÍTICA: Generar número temporal si no hay
+            numero_guia = datos_guia.get("numero_guia")
+            if not numero_guia or str(numero_guia).strip() == "" or numero_guia == "None":
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                numero_guia = f"TEMP-GUIA-{timestamp}"
+                print(f"⚠️ Número de guía no extraído, usando temporal: {numero_guia}")
+            
             # Verificar empresa
             empresa = None
             if empresa_id:
@@ -148,23 +173,23 @@ async def procesar_documento(
                 empresa_id=empresa.id if empresa else None,
                 tipo_documento_id=tipo_documento_id,
                 
-                # Datos básicos de la guía
-                numero_documento=datos_guia.get("numero_guia", "TEMP-" + nombre_archivo),
-                serie=datos_guia.get("serie", ""),
-                correlativo=datos_guia.get("correlativo", ""),
+                # 👇 USAR EL NÚMERO VALIDADO
+                numero_documento=numero_guia,
+                serie=datos_guia.get("serie") or "",
+                correlativo=datos_guia.get("correlativo") or "",
                 tipo_comprobante="GUIA_REMISION",
                 
                 # Fechas
                 fecha_emision=datos_guia.get("fecha_emision") or datetime.now().date(),
                 
                 # Datos del emisor
-                ruc_emisor=datos_guia.get("ruc_emisor", ""),
-                razon_social_emisor=datos_guia.get("razon_social_emisor", ""),
+                ruc_emisor=datos_guia.get("ruc_emisor") or "",
+                razon_social_emisor=datos_guia.get("razon_social_emisor") or "",
                 direccion_emisor=datos_guia.get("direccion_emisor"),
                 
                 # Datos del destinatario
-                ruc_cliente=datos_guia.get("ruc_destinatario", settings.EMPRESA_RUC),
-                razon_social_cliente=datos_guia.get("razon_social_destinatario", settings.EMPRESA_RAZON_SOCIAL),
+                ruc_cliente=datos_guia.get("ruc_destinatario") or settings.EMPRESA_RUC,
+                razon_social_cliente=datos_guia.get("razon_social_destinatario") or settings.EMPRESA_RAZON_SOCIAL,
                 direccion_cliente=datos_guia.get("direccion_destinatario"),
                 
                 # ⚠️ CRÍTICO: Guías NO tienen montos - TODO en None
@@ -180,9 +205,9 @@ async def procesar_documento(
                 archivo_original_size=tamaño,
                 
                 # OCR
-                texto_ocr_completo=datos_guia.get("texto_completo", ""),
+                texto_ocr_completo=datos_guia.get("texto_completo") or "",
                 datos_ocr_json=str(datos_guia),
-                confianza_ocr_promedio=datos_guia.get("confianza_promedio", 0.0),
+                confianza_ocr_promedio=datos_guia.get("confianza_promedio") or 0.0,
                 procesado_con="claude_vision",
                 tiempo_procesamiento_segundos=tiempo_procesamiento,
                 
@@ -197,7 +222,7 @@ async def procesar_documento(
             # Crear registro de GuiaRemision con datos detallados
             nueva_guia = GuiaRemision(
                 documento_id=nuevo_documento.id,
-                numero_guia=datos_guia.get("numero_guia", ""),
+                numero_guia=numero_guia,
                 fecha_traslado=datos_guia.get("fecha_traslado"),
                 motivo_traslado=datos_guia.get("motivo_traslado"),
                 modalidad_transporte=datos_guia.get("modalidad_transporte"),
@@ -211,23 +236,23 @@ async def procesar_documento(
                 conductor_dni=datos_guia.get("conductor_dni"),
                 conductor_licencia=datos_guia.get("conductor_licencia"),
                 peso_bruto=datos_guia.get("peso_bruto"),
-                unidad_peso=datos_guia.get("unidad_peso", "KGM"),
-                transbordo_programado=datos_guia.get("transbordo_programado", False)
+                unidad_peso=datos_guia.get("unidad_peso") or "KGM",
+                transbordo_programado=datos_guia.get("transbordo_programado") or False
             )
             
             db.add(nueva_guia)
             
             # Items de la guía (bienes transportados)
-            items = datos_guia.get("items", [])
+            items = datos_guia.get("items") or []
             for idx, item_data in enumerate(items, 1):
                 nuevo_item = DocumentoItem(
                     documento_id=nuevo_documento.id,
                     orden=idx,
                     codigo_producto=item_data.get("codigo_producto"),
-                    descripcion=item_data.get("descripcion", ""),
-                    cantidad=item_data.get("cantidad", 1.0),
-                    unidad_medida=item_data.get("unidad_medida", "UND"),
-                    peso_bruto=item_data.get("peso_bruto", 0.0),
+                    descripcion=item_data.get("descripcion") or "",
+                    cantidad=item_data.get("cantidad") or 1.0,
+                    unidad_medida=item_data.get("unidad_medida") or "UND",
+                    peso_bruto=item_data.get("peso_bruto") or 0.0,
                     precio_unitario=0.0,
                     valor_total=0.0,
                     igv_item=0.0,

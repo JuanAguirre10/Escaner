@@ -161,6 +161,119 @@ export default function ValidarGuiaRemision() {
         </div>
       </div>
 
+      {/* Datos Básicos de la Guía */}
+      <Card>
+        <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+          <div className="p-2 bg-indigo-100 rounded-lg shrink-0">
+            <Package className="text-indigo-600" size={20} />
+          </div>
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Datos de la Guía</h2>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          <Input
+            label="Número de Guía"
+            value={guia.numero_guia || ''}
+            onChange={(e) => handleChange('numero_guia', e.target.value)}
+            className="font-mono font-semibold"
+          />
+
+          <Input
+            label="Serie"
+            value={guia.serie_guia || documento?.serie || ''}
+            onChange={(e) => handleChange('serie_guia', e.target.value)}
+          />
+
+          <Input
+            label="Correlativo"
+            value={guia.correlativo_guia || documento?.correlativo || ''}
+            onChange={(e) => handleChange('correlativo_guia', e.target.value)}
+          />
+
+          <Input
+            label="Fecha de Emisión"
+            type="date"
+            value={documento?.fecha_emision || ''}
+            onChange={(e) => setDocumento(prev => ({ ...prev, fecha_emision: e.target.value }))}
+          />
+
+          <Input
+            label="Vehículo MTC"
+            value={guia.vehiculo_mtc || ''}
+            onChange={(e) => handleChange('vehiculo_mtc', e.target.value)}
+            placeholder="Certificado MTC"
+          />
+
+          <div className="lg:col-span-1">
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+              Transbordo Programado
+            </label>
+            <select
+              value={guia.transbordo_programado ? 'true' : 'false'}
+              onChange={(e) => handleChange('transbordo_programado', e.target.value === 'true')}
+              className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            >
+              <option value="false">No</option>
+              <option value="true">Sí</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Datos del Emisor */}
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-4">Emisor (Remitente)</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <Input
+              label="RUC Emisor"
+              value={documento?.ruc_emisor || ''}
+              onChange={(e) => setDocumento(prev => ({ ...prev, ruc_emisor: e.target.value }))}
+              maxLength={11}
+            />
+
+            <Input
+              label="Razón Social Emisor"
+              value={documento?.razon_social_emisor || ''}
+              onChange={(e) => setDocumento(prev => ({ ...prev, razon_social_emisor: e.target.value }))}
+              className="sm:col-span-2 lg:col-span-1"
+            />
+
+            <Input
+              label="Dirección Emisor"
+              value={documento?.direccion_emisor || ''}
+              onChange={(e) => setDocumento(prev => ({ ...prev, direccion_emisor: e.target.value }))}
+              className="sm:col-span-2"
+            />
+          </div>
+        </div>
+
+        {/* Datos del Destinatario */}
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-4">Destinatario</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <Input
+              label="RUC Destinatario"
+              value={documento?.ruc_cliente || ''}
+              onChange={(e) => setDocumento(prev => ({ ...prev, ruc_cliente: e.target.value }))}
+              maxLength={11}
+            />
+
+            <Input
+              label="Razón Social Destinatario"
+              value={documento?.razon_social_cliente || ''}
+              onChange={(e) => setDocumento(prev => ({ ...prev, razon_social_cliente: e.target.value }))}
+              className="sm:col-span-2 lg:col-span-1"
+            />
+
+            <Input
+              label="Dirección Destinatario"
+              value={documento?.direccion_cliente || ''}
+              onChange={(e) => setDocumento(prev => ({ ...prev, direccion_cliente: e.target.value }))}
+              className="sm:col-span-2"
+            />
+          </div>
+        </div>
+      </Card>
+
       {/* Datos del Traslado */}
       <Card>
         <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">

@@ -44,14 +44,29 @@ app.add_middleware(
 # ==================================
 
 # Servir archivos subidos
-uploads_path = Path(__file__).parent / settings.UPLOAD_DIR
+uploads_path = Path(__file__).parent.parent / "uploads" 
 uploads_path.mkdir(parents=True, exist_ok=True)
+
+print(f"\n{'='*60}")
+print(f"📁 CONFIGURACIÓN DE UPLOADS:")
+print(f"{'='*60}")
+print(f"🔍 settings.UPLOAD_DIR: {settings.UPLOAD_DIR}")
+print(f"🔍 __file__: {__file__}")
+print(f"🔍 uploads_path calculado: {uploads_path}")
+print(f"🔍 uploads_path existe: {uploads_path.exists()}")
+if uploads_path.exists():
+    print(f"🔍 Contenido de uploads/:")
+    for item in uploads_path.iterdir():
+        print(f"   - {item.name}")
+print(f"{'='*60}\n")
 
 app.mount(
     "/uploads",
     StaticFiles(directory=str(uploads_path)),
     name="uploads"
 )
+
+print(f"✅ StaticFiles montado: /uploads -> {uploads_path}")
 
 
 # ==================================

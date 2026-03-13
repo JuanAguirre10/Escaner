@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     # ==================================
     # ARCHIVOS Y UPLOADS
     # ==================================
-    UPLOAD_DIR: str = "uploads/documentos"
+    UPLOAD_DIR: str = "uploads"
     MAX_FILE_SIZE_MB: int = 10
     ALLOWED_EXTENSIONS: str = "pdf,png,jpg,jpeg"
     

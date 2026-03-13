@@ -97,7 +97,7 @@ export default function ListaExpedientes() {
   const descargarZip = async (expedienteId, codigoExpediente) => {
     try {
       const response = await fetch(
-        `http://192.168.100.24:8001/api/v1/expedientes/${expedienteId}/descargar-zip`,
+        `http://192.168.2.47:8001/api/v1/expedientes/${expedienteId}/descargar-zip`,
         {
           method: 'GET',
         }

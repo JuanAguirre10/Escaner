@@ -700,7 +700,7 @@ export default function ValidarFactura() {
       <Modal isOpen={showImage} onClose={() => setShowImage(false)} title="Imagen del Documento" size="xl">
         <div className="max-h-[70vh] overflow-auto">
           <img 
-            src={`http://192.168.100.24:8000/${factura.archivo_original_url}`}
+            src={`http://192.168.2.47:8000/${factura.archivo_original_url}`}
             alt="Documento"
             className="w-full"
           />
