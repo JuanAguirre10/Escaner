@@ -3,12 +3,15 @@ Aplicación principal FastAPI
 Sistema de Gestión de Documentos SUPERVAN
 """
 
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 from app.db.session import verify_db_connection
 from app.api.v1.router import api_router
 
@@ -47,18 +50,6 @@ app.add_middleware(
 uploads_path = Path(__file__).parent.parent / "uploads" 
 uploads_path.mkdir(parents=True, exist_ok=True)
 
-print(f"\n{'='*60}")
-print(f"📁 CONFIGURACIÓN DE UPLOADS:")
-print(f"{'='*60}")
-print(f"🔍 settings.UPLOAD_DIR: {settings.UPLOAD_DIR}")
-print(f"🔍 __file__: {__file__}")
-print(f"🔍 uploads_path calculado: {uploads_path}")
-print(f"🔍 uploads_path existe: {uploads_path.exists()}")
-if uploads_path.exists():
-    print(f"🔍 Contenido de uploads/:")
-    for item in uploads_path.iterdir():
-        print(f"   - {item.name}")
-print(f"{'='*60}\n")
 
 app.mount(
     "/uploads",
@@ -66,7 +57,7 @@ app.mount(
     name="uploads"
 )
 
-print(f"✅ StaticFiles montado: /uploads -> {uploads_path}")
+logger.info(f"StaticFiles montado: /uploads -> {uploads_path}")
 
 
 # ==================================
@@ -86,29 +77,17 @@ app.include_router(
 @app.on_event("startup")
 async def startup_event():
     """Ejecutar al iniciar la aplicación"""
-    print("\n" + "="*60)
-    print(f"🚀 Iniciando {settings.PROJECT_NAME} v{settings.PROJECT_VERSION}")
-    print("="*60)
-    
-    # Verificar conexión a base de datos
+    logger.info(f"Iniciando {settings.PROJECT_NAME} v{settings.PROJECT_VERSION}")
     if verify_db_connection():
-        print("✅ Base de datos conectada correctamente")
+        logger.info("Base de datos conectada correctamente")
     else:
-        print("❌ Error conectando a la base de datos")
-        print("⚠️  La aplicación puede no funcionar correctamente")
-    
-    print("="*60)
-    print(f"📖 Documentación: http://localhost:8000/docs")
-    print(f"🔄 API v1: http://localhost:8000{settings.API_V1_PREFIX}")
-    print("="*60 + "\n")
+        logger.error("Error conectando a la base de datos - la aplicación puede no funcionar correctamente")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Ejecutar al cerrar la aplicación"""
-    print("\n" + "="*60)
-    print(f"👋 Cerrando {settings.PROJECT_NAME}")
-    print("="*60 + "\n")
+    logger.info(f"Cerrando {settings.PROJECT_NAME}")
 
 
 # ==================================

@@ -64,7 +64,8 @@ def guardar_archivo(file: UploadFile, tipo_documento_id: int) -> tuple[str, Path
         2: "guias_remision",
         3: "ordenes_compra",
         4: "notas_entrega",
-        5: "documentos_identidad"
+        5: "documentos_identidad",
+        6: "recibos_honorarios"
     }
     
     carpeta = carpetas.get(tipo_documento_id, "otros")
@@ -84,8 +85,6 @@ def guardar_archivo(file: UploadFile, tipo_documento_id: int) -> tuple[str, Path
     # Obtener tamaño
     tamaño = ruta_archivo.stat().st_size
     
-    print(f"✅ Archivo guardado en: {ruta_archivo}")
-    
     return nombre_archivo, ruta_archivo, tamaño
 
 # ==================================
@@ -99,20 +98,14 @@ async def procesar_documento(
     tipo_documento_id: int = Form(1),  # Por defecto FACTURA
     db: Session = Depends(get_db)
 ):
-    # DEBUG: Ver qué tipo se está recibiendo
-    print(f"🔍 DEBUG: tipo_documento_id recibido = {tipo_documento_id}")
-    
-    # 1. Validar archivo
-    validar_archivo(file)
-
     """
     Sube un archivo y lo procesa con Claude Vision OCR
-    
+
     **Parámetros:**
     - file: Archivo PDF o imagen
     - empresa_id: ID de la empresa emisora (opcional)
     - tipo_documento_id: 1=FACTURA, 2=GUIA_REMISION, 3=ORDEN_VENTA
-    
+
     **Proceso:**
     1. Valida archivo
     2. Guarda en disco
@@ -153,7 +146,6 @@ async def procesar_documento(
             if not numero_guia or str(numero_guia).strip() == "" or numero_guia == "None":
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 numero_guia = f"TEMP-GUIA-{timestamp}"
-                print(f"⚠️ Número de guía no extraído, usando temporal: {numero_guia}")
             
             # Verificar empresa
             empresa = None
@@ -397,6 +389,106 @@ async def procesar_documento(
             )
         
         
+        elif tipo_documento_id == 6:  # RECIBO POR HONORARIOS
+            datos_extraidos = extractor.extraer_datos_recibo_honorarios(
+                ruta_archivo=str(ruta_archivo),
+                tipo_archivo=file.filename.split(".")[-1].lower()
+            )
+
+            tiempo_procesamiento = (datetime.now() - inicio_procesamiento).total_seconds()
+
+            empresa = None
+            if empresa_id:
+                empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+            else:
+                ruc_emisor = datos_extraidos.get("ruc_emisor")
+                if ruc_emisor:
+                    empresa = db.query(Empresa).filter(Empresa.ruc == ruc_emisor).first()
+
+            nuevo_documento = Documento(
+                empresa_id=empresa.id if empresa else None,
+                tipo_documento_id=6,
+
+                numero_documento=datos_extraidos.get("numero_factura", "TEMP-" + nombre_archivo),
+                serie=datos_extraidos.get("serie", ""),
+                correlativo=datos_extraidos.get("correlativo", ""),
+                tipo_comprobante="RECIBO_HONORARIOS",
+
+                fecha_emision=datos_extraidos.get("fecha_emision") or datetime.now().date(),
+                fecha_vencimiento=datos_extraidos.get("fecha_vencimiento"),
+
+                ruc_emisor=datos_extraidos.get("ruc_emisor", ""),
+                razon_social_emisor=datos_extraidos.get("razon_social_emisor", ""),
+                direccion_emisor=datos_extraidos.get("direccion_emisor"),
+                telefono_emisor=datos_extraidos.get("telefono_emisor"),
+                email_emisor=datos_extraidos.get("email_emisor"),
+
+                ruc_cliente=settings.EMPRESA_RUC,
+                razon_social_cliente=settings.EMPRESA_RAZON_SOCIAL,
+                direccion_cliente=settings.EMPRESA_DIRECCION,
+
+                orden_compra=datos_extraidos.get("orden_compra"),
+
+                subtotal=datos_extraidos.get("subtotal", 0.0),
+                igv=None,
+                total=datos_extraidos.get("total", 0.0),
+                moneda=datos_extraidos.get("moneda", "PEN"),
+
+                forma_pago=datos_extraidos.get("forma_pago"),
+                condicion_pago=datos_extraidos.get("condicion_pago"),
+
+                archivo_original_nombre=nombre_archivo,
+                archivo_original_url=str(ruta_archivo),
+                archivo_original_tipo=file.filename.split(".")[-1].lower(),
+                archivo_original_size=tamaño,
+
+                texto_ocr_completo=datos_extraidos.get("texto_completo", ""),
+                datos_ocr_json=str(datos_extraidos),
+                confianza_ocr_promedio=datos_extraidos.get("confianza_promedio", 0.0),
+                procesado_con="claude_vision",
+                tiempo_procesamiento_segundos=tiempo_procesamiento,
+
+                estado="pendiente_validacion",
+                validado=False,
+            )
+
+            db.add(nuevo_documento)
+            db.flush()
+
+            # Items del recibo
+            items = datos_extraidos.get("items", [])
+            for idx, item_data in enumerate(items, 1):
+                nuevo_item = DocumentoItem(
+                    documento_id=nuevo_documento.id,
+                    orden=idx,
+                    codigo_producto=item_data.get("codigo_producto"),
+                    descripcion=item_data.get("descripcion", ""),
+                    detalle_adicional=item_data.get("detalle_adicional"),
+                    cantidad=item_data.get("cantidad", 1.0),
+                    unidad_medida=item_data.get("unidad_medida", "SRV"),
+                    precio_unitario=item_data.get("precio_unitario", 0.0),
+                    descuento_porcentaje=item_data.get("descuento_porcentaje", 0.0),
+                    valor_venta=item_data.get("valor_venta", 0.0),
+                    valor_total=item_data.get("valor_total", 0.0),
+                    igv_item=0.0,
+                    total_item=item_data.get("valor_total", 0.0),
+                )
+                db.add(nuevo_item)
+
+            db.commit()
+            db.refresh(nuevo_documento)
+
+            return DocumentoOCRResponse(
+                documento_id=nuevo_documento.id,
+                uuid=str(nuevo_documento.uuid),
+                numero_documento=nuevo_documento.numero_documento,
+                datos_extraidos=datos_extraidos,
+                confianza_promedio=float(nuevo_documento.confianza_ocr_promedio or 0),
+                tiempo_procesamiento=tiempo_procesamiento,
+                estado=nuevo_documento.estado,
+                mensaje="Recibo por Honorarios procesado exitosamente"
+            )
+
         else:  # FACTURA u otros documentos con montos
             # Procesar como factura
             datos_extraidos = extractor.extraer_datos_factura(

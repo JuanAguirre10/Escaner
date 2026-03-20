@@ -17,6 +17,9 @@ class NotaEntregaBase(BaseModel):
     orden_compra_numero: Optional[str] = Field(None, max_length=50)
     factura_numero: Optional[str] = Field(None, max_length=50)
     guia_numero: Optional[str] = Field(None, max_length=50)
+    visitante_nombre: Optional[str] = Field(None, max_length=200)
+    visitante_dni: Optional[str] = Field(None, max_length=20)
+    visitante_empresa: Optional[str] = Field(None, max_length=200)
 
 
 class NotaEntregaCreate(NotaEntregaBase):
@@ -32,6 +35,9 @@ class NotaEntregaUpdate(BaseModel):
     orden_compra_numero: Optional[str] = None
     factura_numero: Optional[str] = None
     guia_numero: Optional[str] = None
+    visitante_nombre: Optional[str] = Field(None, max_length=200)
+    visitante_dni: Optional[str] = Field(None, max_length=20)
+    visitante_empresa: Optional[str] = Field(None, max_length=200)
 
 
 class NotaEntregaResponse(NotaEntregaBase):

@@ -189,29 +189,38 @@ def obtener_estado_expediente(
             detail=f"Expediente con ID {expediente_id} no encontrado"
         )
     
-    # Contar documentos por tipo
+    exentos = expediente.documentos_exentos or []
+
     tiene_oc = any(d.tipo_documento_id == 3 for d in expediente.documentos)
-    tiene_factura = any(d.tipo_documento_id == 1 for d in expediente.documentos)
+    tiene_factura_o_rxh = any(d.tipo_documento_id in [1, 6] for d in expediente.documentos)
     tiene_guia = any(d.tipo_documento_id == 2 for d in expediente.documentos)
-    tiene_nota = len(expediente.notas_entrega) > 0
-    
-    completo = tiene_oc and tiene_factura and tiene_guia and tiene_nota
-    
+
+    factura_requerida = 1 not in exentos and 6 not in exentos
+    guia_requerida = 2 not in exentos
+
+    factura_ok = tiene_factura_o_rxh or not factura_requerida
+    guia_ok = tiene_guia or not guia_requerida
+
+    completo = tiene_oc and factura_ok and guia_ok
+
+    faltantes = []
+    if not tiene_oc:
+        faltantes.append("Orden de Compra")
+    if factura_requerida and not tiene_factura_o_rxh:
+        faltantes.append("Factura / Recibo por Honorarios")
+    if guia_requerida and not tiene_guia:
+        faltantes.append("Guía de Remisión")
+
     return {
         "expediente_id": expediente_id,
         "codigo_expediente": expediente.codigo_expediente,
         "estado": expediente.estado,
         "tiene_orden_compra": tiene_oc,
-        "tiene_factura": tiene_factura,
+        "tiene_factura": tiene_factura_o_rxh,
         "tiene_guia": tiene_guia,
-        "tiene_nota_entrega": tiene_nota,
         "completo": completo,
-        "documentos_faltantes": [
-            "Orden de Compra" if not tiene_oc else None,
-            "Factura" if not tiene_factura else None,
-            "Guía de Remisión" if not tiene_guia else None,
-            "Nota de Entrega" if not tiene_nota else None,
-        ]
+        "documentos_exentos": exentos,
+        "documentos_faltantes": faltantes
     }
 
 
@@ -267,6 +276,7 @@ def obtener_expediente(
         "motivo_cierre": expediente.motivo_cierre,
         "observaciones": expediente.observaciones,
         "empresa_id": expediente.empresa_id if hasattr(expediente, 'empresa_id') else None,
+        "documentos_exentos": expediente.documentos_exentos or [],
         
         # Documentos COMPLETOS con archivo_original_url
         "documentos": [
@@ -301,6 +311,9 @@ def obtener_expediente(
                 "factura_numero": nota.factura_numero if hasattr(nota, 'factura_numero') else None,
                 "guia_numero": nota.guia_numero if hasattr(nota, 'guia_numero') else None,
                 "observaciones": nota.observaciones if hasattr(nota, 'observaciones') else None,
+                "visitante_nombre": nota.visitante_nombre if hasattr(nota, 'visitante_nombre') else None,
+                "visitante_dni": nota.visitante_dni if hasattr(nota, 'visitante_dni') else None,
+                "visitante_empresa": nota.visitante_empresa if hasattr(nota, 'visitante_empresa') else None,
             }
             for nota in expediente.notas_entrega
         ],
@@ -447,6 +460,47 @@ def asociar_documento(
     return {"mensaje": "Documento asociado correctamente", "expediente_id": expediente_id}
 
 
+@router.post("/{expediente_id}/exentar")
+def exentar_documento(
+    expediente_id: int,
+    request: dict,
+    db: Session = Depends(get_db)
+):
+    """Marca/desmarca un tipo de documento como no requerido para este expediente.
+    Solo aplica a tipo_documento_id 1 (Factura), 2 (Guía de Remisión) y 6 (RxH).
+    """
+    tipo_id = request.get('tipo_documento_id')
+    exentar = request.get('exentar', True)  # True=exentar, False=revertir
+
+    if tipo_id not in [1, 2, 6]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Solo se puede exentar Factura (1), Guía de Remisión (2) o Recibo por Honorarios (6)"
+        )
+
+    expediente = db.query(Expediente).filter(Expediente.id == expediente_id).first()
+    if not expediente:
+        raise HTTPException(status_code=404, detail="Expediente no encontrado")
+
+    exentos = list(expediente.documentos_exentos or [])
+
+    if exentar and tipo_id not in exentos:
+        exentos.append(tipo_id)
+    elif not exentar and tipo_id in exentos:
+        exentos.remove(tipo_id)
+
+    from sqlalchemy.orm.attributes import flag_modified
+    expediente.documentos_exentos = exentos
+    flag_modified(expediente, 'documentos_exentos')
+    db.commit()
+    db.refresh(expediente)
+
+    return {
+        "expediente_id": expediente_id,
+        "documentos_exentos": expediente.documentos_exentos
+    }
+
+
 @router.post("/{expediente_id}/verificar-completitud")
 def verificar_y_actualizar_estado(
     expediente_id: int,
@@ -457,40 +511,55 @@ def verificar_y_actualizar_estado(
         joinedload(Expediente.documentos),
         joinedload(Expediente.notas_entrega)
     ).filter(Expediente.id == expediente_id).first()
-    
+
     if not expediente:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Expediente con ID {expediente_id} no encontrado"
         )
-    
-    # Verificar qué documentos tiene
+
+    exentos = expediente.documentos_exentos or []
+
     tiene_oc = any(d.tipo_documento_id == 3 for d in expediente.documentos)
-    tiene_factura = any(d.tipo_documento_id == 1 for d in expediente.documentos)
+    tiene_factura_o_rxh = any(d.tipo_documento_id in [1, 6] for d in expediente.documentos)
     tiene_guia = any(d.tipo_documento_id == 2 for d in expediente.documentos)
-    tiene_nota = len(expediente.notas_entrega) > 0
-    
-    # Actualizar estado
-    if tiene_oc and tiene_factura and tiene_guia and tiene_nota:
+
+    factura_requerida = 1 not in exentos and 6 not in exentos
+    guia_requerida = 2 not in exentos
+
+    factura_ok = tiene_factura_o_rxh or not factura_requerida
+    guia_ok = tiene_guia or not guia_requerida
+
+    completo = tiene_oc and factura_ok and guia_ok
+
+    if completo:
         expediente.estado = 'completo'
         expediente.fecha_cierre = date.today()
     elif tiene_oc:
         expediente.estado = 'en_proceso'
     else:
         expediente.estado = 'incompleto'
-    
+
     db.commit()
     db.refresh(expediente)
-    
+
+    faltantes = []
+    if not tiene_oc:
+        faltantes.append("Orden de Compra")
+    if factura_requerida and not tiene_factura_o_rxh:
+        faltantes.append("Factura / Recibo por Honorarios")
+    if guia_requerida and not tiene_guia:
+        faltantes.append("Guía de Remisión")
+
     return {
         "expediente_id": expediente.id,
         "codigo": expediente.codigo_expediente,
         "estado": expediente.estado,
         "tiene_oc": tiene_oc,
-        "tiene_factura": tiene_factura,
+        "tiene_factura": tiene_factura_o_rxh,
         "tiene_guia": tiene_guia,
-        "tiene_nota": tiene_nota,
-        "completo": expediente.estado == 'completo'
+        "completo": expediente.estado == 'completo',
+        "documentos_faltantes": faltantes
     }
 
 
@@ -548,14 +617,13 @@ async def descargar_expediente_zip(
             if documento.archivo_original_url:
                 archivo_path = documento.archivo_original_url
                 
-                print(f"🔍 Buscando archivo: {archivo_path}")
-                
                 if os.path.exists(archivo_path):
                     tipo_nombre = {
                         1: "Factura",
                         2: "Guia_Remision",
                         3: "Orden_Compra",
-                        4: "Nota_Entrega"
+                        4: "Nota_Entrega",
+                        6: "Recibo_Honorarios"
                     }.get(documento.tipo_documento_id, "Documento")
                     
                     if documento.archivo_original_nombre:
@@ -569,11 +637,8 @@ async def descargar_expediente_zip(
                         with open(archivo_path, 'rb') as f:
                             zip_file.writestr(nombre_en_zip, f.read())
                         archivos_agregados += 1
-                        print(f"✅ Agregado: {nombre_en_zip}")
                     except Exception as e:
-                        print(f"❌ Error agregando {archivo_path}: {str(e)}")
-                else:
-                    print(f"❌ Archivo no encontrado: {archivo_path}")
+                        pass
         
         # ============================================
         # DOCUMENTOS DE IDENTIDAD
@@ -585,8 +650,6 @@ async def descargar_expediente_zip(
         for doc_id in documentos_identidad:
             if hasattr(doc_id, 'archivo_url') and doc_id.archivo_url:
                 archivo_path = doc_id.archivo_url
-                
-                print(f"🔍 Buscando doc identidad: {archivo_path}")
                 
                 if os.path.exists(archivo_path):
                     tipo_doc = doc_id.tipo_documento.replace(" ", "_") if hasattr(doc_id, 'tipo_documento') else "DocIdentidad"
@@ -602,11 +665,8 @@ async def descargar_expediente_zip(
                         with open(archivo_path, 'rb') as f:
                             zip_file.writestr(nombre_en_zip, f.read())
                         archivos_agregados += 1
-                        print(f"✅ Agregado doc identidad: {nombre_en_zip}")
                     except Exception as e:
-                        print(f"❌ Error agregando doc identidad {archivo_path}: {str(e)}")
-                else:
-                    print(f"❌ Archivo doc identidad no encontrado: {archivo_path}")
+                        pass
         
         # Si no se agregó ningún archivo, agregar un archivo de texto
         if archivos_agregados == 0:
@@ -620,8 +680,6 @@ async def descargar_expediente_zip(
                 contenido += f"- Tipo: {doc.tipo_documento_id}, Número: {doc.numero_documento}\n"
             
             zip_file.writestr("ADVERTENCIA.txt", contenido)
-        else:
-            print(f"✅ ZIP creado con {archivos_agregados} archivo(s)")
     
     # Preparar respuesta
     zip_buffer.seek(0)

@@ -65,6 +65,12 @@ def generar_pdf_nota_entrega(nota: NotaEntrega, expediente: Optional[Expediente]
         ['Estado de Mercadería:', nota.estado_mercaderia or 'N/A'],
     ]
     
+    if nota.visitante_nombre or nota.visitante_dni:
+        data_principal.append(['Visitante:', nota.visitante_nombre or 'N/A'])
+        data_principal.append(['DNI Visitante:', nota.visitante_dni or 'N/A'])
+        if nota.visitante_empresa:
+            data_principal.append(['Empresa Visitante:', nota.visitante_empresa])
+
     table_principal = Table(data_principal, colWidths=[2.5*inch, 4*inch])
     table_principal.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e5e7eb')),
@@ -198,7 +204,6 @@ def crear_nota(
     2. Genera PDF de la nota
     3. Crea registro en tabla documentos (tipo_documento_id = 4)
     """
-    print(f"📝 CREANDO NOTA DE ENTREGA: {nota.model_dump()}")
     
     # Verificar que no exista el número
     nota_existente = db.query(NotaEntrega).filter(
@@ -235,9 +240,7 @@ def crear_nota(
     
     try:
         generar_pdf_nota_entrega(nueva_nota, expediente, ruta_pdf)
-        print(f"✅ PDF generado: {ruta_pdf}")
     except Exception as e:
-        print(f"❌ Error generando PDF: {e}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -310,9 +313,7 @@ def crear_nota(
     try:
         db.commit()
         db.refresh(nueva_nota)
-        print(f"✅ Nota y documento creados exitosamente")
     except Exception as e:
-        print(f"❌ Error guardando en BD: {e}")
         # Eliminar PDF si falla el commit
         if ruta_pdf.exists():
             ruta_pdf.unlink()

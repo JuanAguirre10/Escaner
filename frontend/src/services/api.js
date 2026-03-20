@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://192.168.2.47';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 const API_V1_PREFIX = import.meta.env.VITE_API_V1_PREFIX || '/api/v1';
 
 const api = axios.create({
@@ -12,31 +12,16 @@ const api = axios.create({
   timeout: 60000,  // ← 60 segundos (1 minuto)
 });
 
-// Interceptor para requests
-api.interceptors.request.use(
-  (config) => {
-    console.log(`🔵 ${config.method.toUpperCase()} ${config.url}`);
-    return config;
-  },
-  (error) => {
-    console.error('❌ Error en request:', error);
-    return Promise.reject(error);
-  }
-);
-
-// Interceptor para responses
+// Interceptor para errores de respuesta
 api.interceptors.response.use(
-  (response) => {
-    console.log(`✅ ${response.status} ${response.config.url}`);
-    return response;
-  },
+  (response) => response,
   (error) => {
     if (error.response) {
-      console.error(`❌ ${error.response.status} ${error.config.url}`, error.response.data);
+      console.error(`API Error ${error.response.status}:`, error.response.data);
     } else if (error.request) {
-      console.error('❌ No hay respuesta del servidor');
+      console.error('API Error: No hay respuesta del servidor');
     } else {
-      console.error('❌ Error:', error.message);
+      console.error('API Error:', error.message);
     }
     return Promise.reject(error);
   }

@@ -24,6 +24,11 @@ class NotaEntrega(Base):
     recibido_por = Column(String(200))
     estado_mercaderia = Column(String(50))  # conforme, no_conforme, parcial
     observaciones = Column(Text)
+
+    # Datos del visitante
+    visitante_nombre = Column(String(200), nullable=True)
+    visitante_dni = Column(String(20), nullable=True)
+    visitante_empresa = Column(String(200), nullable=True)
     
     # Referencias a otros documentos
     orden_compra_numero = Column(String(50), index=True)

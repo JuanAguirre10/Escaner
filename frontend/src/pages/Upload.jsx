@@ -58,10 +58,8 @@ export default function Upload() {
     const { empresaId, expedienteId } = location.state || {};
 
     if (empresaId && expedienteId) {
-      console.log('🔄 Cargando desde location.state');
       cargarContextoCompleto(empresaId, expedienteId);
     } else if (expedienteIdParam) {
-      console.log('🔄 Cargando desde URL param');
       cargarContextoDesdeExpediente(expedienteIdParam);
     }
   }, [searchParams, location.state]);
@@ -77,7 +75,6 @@ export default function Upload() {
 
   const cargarContextoCompleto = async (empresaId, expedienteId) => {
     try {
-      console.log('📦 Cargando contexto completo...', { empresaId, expedienteId });
       
       const emp = await empresaService.obtener(empresaId);
       setEmpresa(emp);
@@ -99,7 +96,6 @@ export default function Upload() {
 
   const cargarContextoDesdeExpediente = async (expedienteId) => {
     try {
-      console.log('📦 Cargando desde expediente ID:', expedienteId);
       
       const exp = await expedienteService.obtener(expedienteId);
       setExpedienteSeleccionado(exp);
@@ -139,8 +135,6 @@ export default function Upload() {
   };
 
   const seleccionarEmpresa = async (empresaSelec) => {
-    console.log('🔍 Empresa seleccionada:', empresaSelec);
-    
     setEmpresa(empresaSelec);
     setEmpresaSeleccionada(true);
     setBusquedaEmpresa('');
@@ -148,9 +142,7 @@ export default function Upload() {
     setMostrarSugerencias(false);
     
     try {
-      console.log('📦 Buscando expedientes incompletos para empresa ID:', empresaSelec.id);
       const incompletos = await expedienteService.obtenerIncompletos(empresaSelec.id);
-      console.log('📦 Expedientes incompletos encontrados:', incompletos.length);
       
       setExpedientesIncompletos(incompletos);
       setMostrandoExpedientes(true);
@@ -403,10 +395,11 @@ export default function Upload() {
         setArchivo(null);
         setPreview(null);
         
-        const tipoNombre = 
+        const tipoNombre =
           tipoSeleccionado === TIPOS_DOCUMENTO.FACTURA ? 'Factura' :
           tipoSeleccionado === TIPOS_DOCUMENTO.GUIA_REMISION ? 'Guía de Remisión' :
-          tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA ? 'Orden de Compra' : 'Documento';
+          tipoSeleccionado === TIPOS_DOCUMENTO.ORDEN_COMPRA ? 'Orden de Compra' :
+          tipoSeleccionado === TIPOS_DOCUMENTO.RECIBO_HONORARIOS ? 'Recibo por Honorarios' : 'Documento';
         
         toast.success(
           (t) => (
@@ -423,6 +416,8 @@ export default function Upload() {
                     };
                     
                     if (tipoSeleccionado === TIPOS_DOCUMENTO.FACTURA) {
+                      navigate(`/validar/${resultado.documento_id}`, { state: estadoNavegacion });
+                    } else if (tipoSeleccionado === TIPOS_DOCUMENTO.RECIBO_HONORARIOS) {
                       navigate(`/validar/${resultado.documento_id}`, { state: estadoNavegacion });
                     } else if (tipoSeleccionado === TIPOS_DOCUMENTO.GUIA_REMISION) {
                       navigate(`/validar-guia/${resultado.documento_id}`, { state: estadoNavegacion });
@@ -470,6 +465,25 @@ export default function Upload() {
     navigate('/upload', { replace: true });
   };
 
+  const toggleExencion = async (tipoDocumentoId, exentar) => {
+    try {
+      await expedienteService.exentarDocumento(expedienteSeleccionado.id, tipoDocumentoId, exentar);
+      await recargarExpediente(expedienteSeleccionado.id);
+      toast.success(exentar ? 'Marcado como no requerido' : 'Revertido como requerido');
+    } catch (error) {
+      toast.error('Error al actualizar la exención');
+    }
+  };
+
+  const TABS_TIPOS = [
+    { id: 3, nombre: 'OC', nombreCompleto: 'Orden de Compra', emoji: '📋', activeClass: 'bg-amber-500 text-white border-amber-600 shadow-amber-200', inactiveClass: 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100' },
+    { id: 5, nombre: 'DNI', nombreCompleto: 'Doc. Identidad', emoji: '🪪', activeClass: 'bg-purple-500 text-white border-purple-600 shadow-purple-200', inactiveClass: 'bg-purple-50 text-purple-700 border-purple-300 hover:bg-purple-100' },
+    { id: 1, nombre: 'Factura', nombreCompleto: 'Factura', emoji: '💳', activeClass: 'bg-blue-500 text-white border-blue-600 shadow-blue-200', inactiveClass: 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100' },
+    { id: 6, nombre: 'RxH', nombreCompleto: 'Recibo Honorarios', emoji: '🧾', activeClass: 'bg-orange-500 text-white border-orange-600 shadow-orange-200', inactiveClass: 'bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100' },
+    { id: 2, nombre: 'Guía', nombreCompleto: 'Guía de Remisión', emoji: '🚚', activeClass: 'bg-green-500 text-white border-green-600 shadow-green-200', inactiveClass: 'bg-green-50 text-green-700 border-green-300 hover:bg-green-100' },
+    { id: 4, nombre: 'Nota', nombreCompleto: 'Nota de Entrega', emoji: '📦', activeClass: 'bg-rose-500 text-white border-rose-600 shadow-rose-200', inactiveClass: 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100' },
+  ];
+  const tabActual = TABS_TIPOS.find(t => t.id === tipoSeleccionado);
   const tipoActual = tiposDocumento.find(t => t.id === tipoSeleccionado);
   const esDocumentoIdentidad = tipoSeleccionado === 5;
 
@@ -725,47 +739,75 @@ export default function Upload() {
             </div>
 
             {/* Tabs - Responsive */}
-            <div className="border-b border-gray-200 -mx-4 sm:mx-0">
-              <div className="flex overflow-x-auto scrollbar-hide px-4 sm:px-0">
-                <nav className="flex -mb-px space-x-4 sm:space-x-8 min-w-max">
-                  {[
-                    { id: 3, nombre: 'OC', nombreCompleto: 'Orden de Compra' },
-                    { id: 5, nombre: 'DNI', nombreCompleto: 'Doc. Identidad' },
-                    { id: 1, nombre: 'Factura', nombreCompleto: 'Factura' },
-                    { id: 2, nombre: 'Guía', nombreCompleto: 'Guía de Remisión' },
-                    { id: 4, nombre: 'Nota', nombreCompleto: 'Nota de Entrega' },
-                  ].map((tipo) => {
-                    const esActivo = tipo.id === tipoSeleccionado;
+            <div className="-mx-4 sm:mx-0">
+              <div className="flex overflow-x-auto scrollbar-hide px-4 sm:px-0 gap-2 sm:gap-3 pb-1">
+                {TABS_TIPOS.map((tipo) => {
+                  const esActivo = tipo.id === tipoSeleccionado;
 
-                    return (
-                      <button
-                        key={tipo.id}
-                        onClick={() => setTipoSeleccionado(tipo.id)}
-                        className={`
-                          py-3 sm:py-4 px-2 sm:px-3 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap
-                          ${esActivo
-                            ? 'border-blue-500 text-blue-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                          }
-                        `}
-                      >
-                        <span className="sm:hidden">{tipo.nombre}</span>
-                        <span className="hidden sm:inline">{tipo.nombreCompleto}</span>
-                      </button>
-                    );
-                  })}
-                </nav>
+                  return (
+                    <button
+                      key={tipo.id}
+                      onClick={() => setTipoSeleccionado(tipo.id)}
+                      className={`
+                        flex flex-col items-center gap-1 px-3 sm:px-4 py-2 sm:py-3 rounded-xl border-2 font-medium text-xs sm:text-sm whitespace-nowrap transition-all duration-200 shrink-0
+                        ${esActivo
+                          ? `${tipo.activeClass} shadow-md scale-105`
+                          : `${tipo.inactiveClass}`
+                        }
+                      `}
+                    >
+                      <span className="text-lg sm:text-xl leading-none">{tipo.emoji}</span>
+                      <span className="sm:hidden">{tipo.nombre}</span>
+                      <span className="hidden sm:inline">{tipo.nombreCompleto}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* Información del tipo seleccionado */}
-            {tipoActual && (
-              <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
-                <p className="text-xs sm:text-sm text-gray-700">
-                  <span className="font-medium">Seleccionado:</span> {tipoActual.descripcion}
+            {tabActual && (
+              <div className={`p-3 sm:p-4 rounded-lg border ${
+                tipoSeleccionado === 3 ? 'bg-amber-50 border-amber-200 text-amber-800' :
+                tipoSeleccionado === 5 ? 'bg-purple-50 border-purple-200 text-purple-800' :
+                tipoSeleccionado === 1 ? 'bg-blue-50 border-blue-200 text-blue-800' :
+                tipoSeleccionado === 6 ? 'bg-orange-50 border-orange-200 text-orange-800' :
+                tipoSeleccionado === 2 ? 'bg-green-50 border-green-200 text-green-800' :
+                'bg-rose-50 border-rose-200 text-rose-800'
+              }`}>
+                <p className="text-xs sm:text-sm">
+                  <span className="font-semibold">Tipo seleccionado:</span> {tabActual.emoji} {tabActual.nombreCompleto}
                 </p>
               </div>
             )}
+
+            {/* Botones de exención — solo para Factura (1), RxH (6) y Guía (2) */}
+            {expedienteSeleccionado && !esTemporal(expedienteSeleccionado) && [1, 2, 6].includes(tipoSeleccionado) && (() => {
+              const exentos = expedienteSeleccionado.documentos_exentos || [];
+              const estaExento = exentos.includes(tipoSeleccionado);
+              return (
+                <div className={`flex items-center justify-between p-3 rounded-lg border ${estaExento ? 'bg-gray-100 border-gray-300' : 'bg-white border-gray-200'}`}>
+                  <div>
+                    <p className="text-xs sm:text-sm font-medium text-gray-700">
+                      {estaExento ? '⚠️ Marcado como NO requerido' : '¿Este documento no aplica para este expediente?'}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {estaExento ? 'No se considerará para completitud del expediente' : 'Márcalo si no se necesita para este caso'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => toggleExencion(tipoSeleccionado, !estaExento)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      estaExento
+                        ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {estaExento ? 'Revertir' : 'No requerido'}
+                  </button>
+                </div>
+              );
+            })()}
 
             {esDocumentoIdentidad && (
               <div className="bg-purple-50 p-3 sm:p-4 rounded-lg">

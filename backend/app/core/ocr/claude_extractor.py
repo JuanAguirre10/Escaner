@@ -328,6 +328,209 @@ VERIFICACIÓN FINAL:
         
         return datos
     
+    def extraer_datos_recibo_honorarios(
+        self,
+        ruta_archivo: str | Path,
+        tipo_archivo: str = "pdf"
+    ) -> Dict[str, Any]:
+        """
+        Extrae datos estructurados de un Recibo por Honorarios peruano usando Claude Vision
+
+        Args:
+            ruta_archivo: Ruta al archivo PDF o imagen
+            tipo_archivo: Extensión del archivo (pdf, png, jpg, etc.)
+
+        Returns:
+            Dict con datos extraídos
+        """
+        ruta_archivo = Path(ruta_archivo)
+
+        with open(ruta_archivo, 'rb') as f:
+            contenido = base64.standard_b64encode(f.read()).decode('utf-8')
+
+        extension = ruta_archivo.suffix.lower() if ruta_archivo.suffix else f".{tipo_archivo}"
+
+        media_types = {
+            '.pdf': 'application/pdf',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.webp': 'image/webp',
+            '.gif': 'image/gif'
+        }
+
+        media_type = media_types.get(extension, 'application/pdf')
+        content_type = "image" if extension in ['.png', '.jpg', '.jpeg', '.webp', '.gif'] else "document"
+
+        prompt = self._generar_prompt_recibo_honorarios()
+
+        message = self.client.messages.create(
+            model=self.model,
+            max_tokens=2000,
+            messages=[{
+                "role": "user",
+                "content": [{
+                    "type": content_type,
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": contenido,
+                    },
+                }, {
+                    "type": "text",
+                    "text": prompt
+                }],
+            }],
+        )
+
+        respuesta = message.content[0].text
+        respuesta = self._limpiar_json(respuesta)
+
+        try:
+            datos = json.loads(respuesta.strip())
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Error parseando respuesta de Claude: {e}\nRespuesta: {respuesta}")
+
+        datos = self._convertir_tipos_datos_rxh(datos)
+
+        return datos
+
+
+    def _generar_prompt_recibo_honorarios(self) -> str:
+        """Genera el prompt para extraer datos de Recibo por Honorarios peruano"""
+        return """Extrae datos del RECIBO POR HONORARIOS ELECTRÓNICO peruano.
+
+CARACTERÍSTICAS DEL RECIBO POR HONORARIOS:
+- Serie empieza con "E" (ej: E001-123)
+- NO tiene IGV (operación exonerada o inafecta)
+- Puede tener Retención del Impuesto a la Renta (IR) del 8% si el monto supera S/ 1,500
+- Es emitido por personas naturales por servicios independientes
+
+Retorna JSON:
+
+{
+  "tipo_comprobante": "RECIBO_HONORARIOS",
+  "numero_factura": "E001-00000123",
+  "serie": "E001",
+  "correlativo": "00000123",
+  "fecha_emision": "2026-01-07",
+  "fecha_vencimiento": null,
+  "ruc_emisor": "10123456789",
+  "razon_social_emisor": "JUAN PEREZ GARCIA",
+  "direccion_emisor": "Jr. Las Flores 123, Lima",
+  "telefono_emisor": null,
+  "email_emisor": null,
+  "ruc_cliente": "20516185211",
+  "razon_social_cliente": "SUPERVAN S.A.C.",
+  "direccion_cliente": "Av. Principal 456",
+  "orden_compra": null,
+  "subtotal": 2000.00,
+  "igv": null,
+  "retencion_ir": 160.00,
+  "total": 1840.00,
+  "moneda": "PEN",
+  "forma_pago": null,
+  "condicion_pago": null,
+  "items": [
+    {
+      "orden": 1,
+      "descripcion": "Servicios de consultoría",
+      "cantidad": 1.0,
+      "unidad_medida": "SRV",
+      "precio_unitario": 2000.00,
+      "descuento_porcentaje": 0.0,
+      "valor_total": 2000.00
+    }
+  ]
+}
+
+INSTRUCCIONES DETALLADAS:
+
+1. NÚMERO DE RECIBO:
+   - Busca el recuadro con "RECIBO POR HONORARIOS ELECTRÓNICO"
+   - La serie DEBE empezar con "E" (ej: E001)
+   - Formato: E###-########
+
+2. EMISOR:
+   - Es una persona natural (no empresa)
+   - RUC de persona natural empieza con "10"
+   - Nombre completo en mayúsculas
+
+3. MONTOS:
+   - subtotal: monto de honorarios brutos (antes de retención)
+   - igv: SIEMPRE null (los RxH no tienen IGV)
+   - retencion_ir: retención del 8% si aplica (cuando honorarios > S/ 1,500), sino null
+   - total: monto neto a pagar (subtotal - retencion_ir)
+   - Si no hay retención: total = subtotal
+
+4. SERVICIO:
+   - Describe el servicio prestado en items
+   - Usualmente es un solo item de servicio
+
+5. FECHAS:
+   - Formato: YYYY-MM-DD
+
+6. Si un campo no existe: null
+
+7. Retorna SOLO JSON sin explicaciones
+
+VERIFICACIÓN FINAL:
+✅ tipo_comprobante = "RECIBO_HONORARIOS"
+✅ serie empieza con "E"
+✅ igv es null
+✅ ruc_emisor empieza con "10" (persona natural)
+"""
+
+
+    def _convertir_tipos_datos_rxh(self, datos: Dict[str, Any]) -> Dict[str, Any]:
+        """Convierte los tipos de datos del Recibo por Honorarios"""
+        # Convertir fechas
+        if datos.get('fecha_emision'):
+            try:
+                if isinstance(datos['fecha_emision'], str):
+                    datos['fecha_emision'] = datetime.strptime(
+                        datos['fecha_emision'], '%Y-%m-%d'
+                    ).date()
+            except:
+                pass
+
+        if datos.get('fecha_vencimiento'):
+            try:
+                if isinstance(datos['fecha_vencimiento'], str):
+                    datos['fecha_vencimiento'] = datetime.strptime(
+                        datos['fecha_vencimiento'], '%Y-%m-%d'
+                    ).date()
+            except:
+                pass
+
+        # Convertir montos a Decimal
+        for campo in ['subtotal', 'total']:
+            if datos.get(campo) is not None:
+                datos[campo] = Decimal(str(datos[campo]))
+
+        # igv siempre None para RxH
+        datos['igv'] = None
+
+        # retencion_ir
+        if datos.get('retencion_ir') is not None:
+            datos['retencion_ir'] = Decimal(str(datos['retencion_ir']))
+
+        # Convertir items
+        if datos.get('items'):
+            for item in datos['items']:
+                for campo in ['cantidad', 'precio_unitario', 'descuento_porcentaje', 'valor_total']:
+                    if item.get(campo) is not None:
+                        item[campo] = Decimal(str(item[campo]))
+
+        # Asegurar tipo_comprobante
+        datos['tipo_comprobante'] = 'RECIBO_HONORARIOS'
+
+        # Confianza
+        datos['confianza_promedio'] = 98.0
+
+        return datos
+
+
     def extraer_datos_guia_remision(
         self, 
         ruta_archivo: str | Path,

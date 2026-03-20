@@ -11,6 +11,7 @@ export default function ListaNotasEntrega() {
   
   const [notas, setNotas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [confirmacion, setConfirmacion] = useState({ visible: false, id: null });
 
   useEffect(() => {
     cargarNotas();
@@ -19,9 +20,7 @@ export default function ListaNotasEntrega() {
   const cargarNotas = async () => {
     try {
       setLoading(true);
-      console.log('📋 Cargando notas de entrega...');
       const data = await notaEntregaService.listar();
-      console.log('📋 Notas recibidas:', data);
       setNotas(data);
     } catch (error) {
       console.error('Error cargando notas:', error);
@@ -31,16 +30,20 @@ export default function ListaNotasEntrega() {
     }
   };
 
-  const handleEliminar = async (id) => {
-    if (!confirm('¿Estás seguro de eliminar esta nota de entrega?')) return;
+  const handleEliminar = (id) => {
+    setConfirmacion({ visible: true, id });
+  };
 
+  const confirmarEliminar = async () => {
     try {
-      await notaEntregaService.eliminar(id);
+      await notaEntregaService.eliminar(confirmacion.id);
       toast.success('Nota eliminada correctamente');
       cargarNotas();
     } catch (error) {
       console.error('Error eliminando:', error);
       toast.error('Error al eliminar la nota');
+    } finally {
+      setConfirmacion({ visible: false, id: null });
     }
   };
 
@@ -250,6 +253,30 @@ export default function ListaNotasEntrega() {
               <p className="text-xs sm:text-sm text-gray-600">Parciales</p>
             </div>
           </Card>
+        </div>
+      )}
+
+      {/* Modal Confirmar Eliminar */}
+      {confirmacion.visible && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-4 sm:p-6 max-w-sm w-full">
+            <h3 className="text-lg font-bold mb-2">Confirmar eliminación</h3>
+            <p className="text-sm text-gray-600 mb-6">¿Estás seguro de eliminar esta nota de entrega?</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmacion({ visible: false, id: null })}
+                className="flex-1 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarEliminar}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

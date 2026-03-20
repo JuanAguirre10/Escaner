@@ -13,6 +13,7 @@ export const TIPOS_DOCUMENTO = {
   GUIA_REMISION: 2,
   ORDEN_COMPRA: 3,
   NOTA_ENTREGA: 4,
+  RECIBO_HONORARIOS: 6,
 };
 
 export const MONEDAS = {

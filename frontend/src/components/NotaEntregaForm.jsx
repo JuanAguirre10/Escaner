@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Save, FileText } from 'lucide-react';
+import { Save, FileText, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, Input, Button } from './common';
 import { notaEntregaService, expedienteService } from '../services';
@@ -13,7 +13,10 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
     observaciones: '',
     orden_compra_numero: expediente.numero_orden_compra,
     factura_numero: '',
-    guia_numero: ''
+    guia_numero: '',
+    visitante_nombre: '',
+    visitante_dni: '',
+    visitante_empresa: '',
   });
 
   const [saving, setSaving] = useState(false);
@@ -25,24 +28,32 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
   const cargarDatosExpediente = async () => {
     try {
       const expCompleto = await expedienteService.obtener(expediente.id);
-      
+
       const numeroNota = `NE-${expCompleto.numero_orden_compra}`;
-      
-      const factura = expCompleto.documentos?.find(d => d.tipo_documento_id === 1);
+
+      const factura = expCompleto.documentos?.find(d => d.tipo_documento_id === 1 || d.tipo_documento_id === 6);
       const guia = expCompleto.documentos?.find(d => d.tipo_documento_id === 2);
-      
+
+      // Último documento de identidad registrado
+      const identidades = expCompleto.documentos_identidad || [];
+      const ultimoDoc = identidades[identidades.length - 1] || null;
+      const nombreVisitante = ultimoDoc
+        ? (ultimoDoc.nombres && ultimoDoc.apellidos
+            ? `${ultimoDoc.nombres} ${ultimoDoc.apellidos}`
+            : ultimoDoc.nombre_completo || '')
+        : '';
+      const dniVisitante = ultimoDoc?.numero_documento || '';
+
       setFormData(prev => ({
         ...prev,
         numero_nota: numeroNota,
         factura_numero: factura?.numero_documento || '',
-        guia_numero: guia?.numero_documento || ''
+        guia_numero: guia?.numero_documento || '',
+        visitante_nombre: nombreVisitante,
+        visitante_dni: dniVisitante,
+        visitante_empresa: empresa?.razon_social || '',
       }));
-      
-      console.log('📋 Datos autocargados:', {
-        numeroNota,
-        factura: factura?.numero_documento,
-        guia: guia?.numero_documento
-      });
+
     } catch (error) {
       console.error('Error cargando datos del expediente:', error);
     }
@@ -57,6 +68,11 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
     
     if (!formData.numero_nota || !formData.fecha_recepcion) {
       toast.error('Completa los campos obligatorios');
+      return;
+    }
+
+    if (!formData.visitante_nombre || !formData.visitante_dni) {
+      toast.error('Ingresa el nombre y DNI del visitante');
       return;
     }
 
@@ -76,25 +92,20 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
         toast.success('✅ Nota de entrega creada correctamente');
       }
       
-      const expCompleto = await expedienteService.obtener(expediente.id);
-      const numeroNota = `NE-${expCompleto.numero_orden_compra}`;
-      const factura = expCompleto.documentos?.find(d => d.tipo_documento_id === 1);
-      const guia = expCompleto.documentos?.find(d => d.tipo_documento_id === 2);
-      
-      setFormData({
-        numero_nota: numeroNota,
+      setFormData(prev => ({
+        ...prev,
         fecha_recepcion: new Date().toISOString().split('T')[0],
         recibido_por: '',
         estado_mercaderia: 'conforme',
         observaciones: '',
-        orden_compra_numero: expediente.numero_orden_compra,
-        factura_numero: factura?.numero_documento || '',
-        guia_numero: guia?.numero_documento || ''
-      });
+      }));
 
       if (onSuccess) {
         onSuccess(expediente.id);
       }
+
+      // Recarga datos frescos (incluye nuevo doc de identidad si fue subido)
+      await cargarDatosExpediente();
     } catch (error) {
       console.error('Error creando nota:', error);
       toast.error(error.response?.data?.detail || 'Error al crear la nota de entrega');
@@ -171,6 +182,39 @@ export default function NotaEntregaForm({ expediente, empresa, onSuccess }) {
               <option value="parcial">Parcial</option>
             </select>
           </div>
+        </div>
+      </Card>
+
+      {/* Datos del Visitante */}
+      <Card>
+        <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+          <User className="text-purple-600" size={20} />
+          <h3 className="text-base sm:text-lg font-semibold">Datos del Visitante</h3>
+        </div>
+        <p className="text-xs text-gray-500 mb-3">Pre-rellenado desde el documento de identidad registrado. Edita si el visitante es diferente en esta visita.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <Input
+            label="Nombre del Visitante *"
+            value={formData.visitante_nombre}
+            onChange={(e) => handleChange('visitante_nombre', e.target.value)}
+            placeholder="Nombre completo"
+            className="text-sm"
+          />
+          <Input
+            label="DNI del Visitante *"
+            value={formData.visitante_dni}
+            onChange={(e) => handleChange('visitante_dni', e.target.value)}
+            placeholder="12345678"
+            maxLength={8}
+            className="text-sm"
+          />
+          <Input
+            label="Empresa del Visitante"
+            value={formData.visitante_empresa}
+            onChange={(e) => handleChange('visitante_empresa', e.target.value)}
+            placeholder="Empresa que representa"
+            className="text-sm sm:col-span-2"
+          />
         </div>
       </Card>
 

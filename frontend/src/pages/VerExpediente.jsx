@@ -39,54 +39,36 @@ export default function VerExpediente() {
   };
 
   const getUrlArchivo = (archivoUrl) => {
-    console.log('🔍 URL recibida:', archivoUrl);
-    
-    if (!archivoUrl) {
-      console.error('❌ URL es null o undefined');
-      return null;
-    }
-    
-    // Si ya es una URL completa, retornarla
-    if (archivoUrl.startsWith('http')) {
-      console.log('✅ URL completa:', archivoUrl);
-      return archivoUrl;
-    }
-    
-    // Convertir ruta de Windows a URL del servidor
+    if (!archivoUrl) return null;
+
+    if (archivoUrl.startsWith('http')) return archivoUrl;
+
     let rutaRelativa = archivoUrl;
-    
-    // Quitar prefijos comunes
+
     const prefijos = [
       'C:\\Proyectos\\sistema-facturas\\backend',
       'C:/Proyectos/sistema-facturas/backend',
       '/home/claude/backend',
       'backend'
     ];
-    
+
     for (const prefijo of prefijos) {
       if (rutaRelativa.includes(prefijo)) {
         rutaRelativa = rutaRelativa.replace(prefijo, '');
         break;
       }
     }
-    
-    // Convertir backslashes a forward slashes
+
     rutaRelativa = rutaRelativa.replace(/\\/g, '/');
-    
-    // Asegurar que empiece con /
-    if (!rutaRelativa.startsWith('/')) {
-      rutaRelativa = '/' + rutaRelativa;
-    }
-    
-    const urlFinal = `http://192.168.2.47:8000${rutaRelativa}`;
-    console.log('✅ URL final:', urlFinal);
-    return urlFinal;
+    if (!rutaRelativa.startsWith('/')) rutaRelativa = '/' + rutaRelativa;
+
+    return `${import.meta.env.VITE_API_BASE_URL}${rutaRelativa}`;
   };
 
   const descargarZip = async () => {
     try {
       const response = await fetch(
-        `http://192.168.2.47:8000/api/v1/expedientes/${id}/descargar-zip`,
+        `${import.meta.env.VITE_API_BASE_URL}/api/v1/expedientes/${id}/descargar-zip`,
         {
           method: 'GET',
         }
@@ -166,6 +148,8 @@ export default function VerExpediente() {
       navigate(`/validar-orden/${doc.id}`);
     } else if (doc.tipo_documento_id === 2) {
       navigate(`/validar-guia/${doc.id}`);
+    } else if (doc.tipo_documento_id === 6) {
+      navigate(`/validar/${doc.id}`);
     } else if (doc.tipo_documento_id === 4) {
       // Nota de entrega - buscar en notas_entrega por numero_nota
       const notaEntrega = expediente.notas_entrega?.find(n => n.numero_nota === doc.numero_documento);
@@ -236,6 +220,7 @@ export default function VerExpediente() {
       case 3: return 'Orden de Compra';
       case 4: return 'Nota de Entrega';
       case 5: return 'Doc. Identidad';
+      case 6: return 'Recibo por Honorarios';
       default: return 'Desconocido';
     }
   };
@@ -247,6 +232,7 @@ export default function VerExpediente() {
       case 3: return <Package className="text-blue-600" size={18} />;
       case 4: return <ClipboardCheck className="text-purple-600" size={18} />;
       case 5: return <User className="text-indigo-600" size={18} />;
+      case 6: return <FileText className="text-orange-600" size={18} />;
       default: return <FileText className="text-gray-600" size={18} />;
     }
   };
@@ -284,9 +270,17 @@ export default function VerExpediente() {
             <h1 className="text-xl sm:text-3xl font-bold text-gray-900 truncate">{expediente.codigo_expediente}</h1>
             <p className="text-xs sm:text-base text-gray-600 mt-1 truncate">OC: {expediente.numero_orden_compra}</p>
           </div>
-          <Badge variant={expediente.estado === 'completo' ? 'success' : 'warning'} className="shrink-0">
-            {expediente.estado === 'completo' ? 'Completo' : 
-             expediente.estado === 'cerrado_manual' ? 'Cerrado' : 'En Proceso'}
+          <Badge
+            variant={
+              expediente.estado === 'completo' ? 'success' :
+              expediente.estado === 'cerrado_manual' ? 'default' :
+              expediente.estado === 'incompleto' ? 'danger' : 'warning'
+            }
+            className="shrink-0"
+          >
+            {expediente.estado === 'completo' ? 'Completo' :
+             expediente.estado === 'cerrado_manual' ? 'Cerrado' :
+             expediente.estado === 'incompleto' ? 'Incompleto' : 'En Proceso'}
           </Badge>
         </div>
 
@@ -440,16 +434,20 @@ export default function VerExpediente() {
               <p className="font-medium text-orange-700 text-sm sm:text-base">{expediente.motivo_cierre}</p>
             </div>
           )}
+          {expediente.documentos_exentos && expediente.documentos_exentos.length > 0 && (
+            <div className="sm:col-span-2">
+              <p className="text-xs sm:text-sm text-gray-600 mb-1">Documentos No Requeridos</p>
+              <div className="flex flex-wrap gap-2">
+                {expediente.documentos_exentos.map((tipoId) => (
+                  <span key={tipoId} className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded-full font-medium">
+                    ⚠️ {tipoId === 1 ? 'Factura' : tipoId === 2 ? 'Guía de Remisión' : tipoId === 6 ? 'Recibo por Honorarios' : `Tipo ${tipoId}`} — No requerido
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </Card>
-
-      {/* DEBUG - TEMPORAL */}
-      {expediente.documentos && expediente.documentos.length > 0 && (
-        <div className="p-4 bg-yellow-100 border border-yellow-300 rounded text-xs mb-4">
-          <p className="font-bold mb-2">DEBUG - Primer documento:</p>
-          <pre className="overflow-auto max-h-40">{JSON.stringify(expediente.documentos[0], null, 2)}</pre>
-        </div>
-      )}
 
       {/* TODOS LOS DOCUMENTOS (Facturas, Guías, OC, Notas, DNI) */}
       <Card title="Documentos del Expediente">
@@ -470,7 +468,7 @@ export default function VerExpediente() {
                     <p className="text-xs sm:text-sm text-gray-600 truncate">{doc.numero_documento}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 justify-end flex-wrap">
+                <div className="flex items-center gap-2 justify-start sm:justify-end flex-wrap">
                   <Badge variant={doc.estado === 'validada' ? 'success' : 'warning'} className="text-xs">
                     {doc.estado}
                   </Badge>
@@ -519,7 +517,7 @@ export default function VerExpediente() {
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-2 justify-end flex-wrap">
+                <div className="flex items-center gap-2 justify-start sm:justify-end flex-wrap">
                   <Badge variant="info" className="text-xs">Doc. Identidad</Badge>
                   
                   {doc.archivo_url && (
@@ -608,54 +606,55 @@ export default function VerExpediente() {
         </div>
       </Card>
 
-      {/* Notas de Entrega (Legado) */}
+
+
+      {/* Notas de Entrega con datos de visitante */}
       {expediente.notas_entrega && expediente.notas_entrega.length > 0 && (
-        <Card title="Notas de Entrega (Legado)">
-          <div className="space-y-2 sm:space-y-3">
+        <Card title="Notas de Entrega">
+          <div className="space-y-3">
             {expediente.notas_entrega.map((nota) => (
-              <div
-                key={nota.id}
-                className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors gap-2 sm:gap-0"
-              >
-                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                  <ClipboardCheck className="text-purple-600 shrink-0" size={18} />
-                  <div className="min-w-0 flex-1">
+              <div key={nota.id} className="p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div>
                     <p className="font-medium text-gray-900 text-sm sm:text-base">{nota.numero_nota}</p>
-                    <p className="text-xs sm:text-sm text-gray-600">
-                      Recepción: {formatDate(nota.fecha_recepcion)}
-                    </p>
+                    <p className="text-xs text-gray-600">{formatDate(nota.fecha_recepcion)}</p>
                   </div>
+                  <span className={`px-2 py-1 text-xs font-medium rounded shrink-0 ${
+                    nota.estado_mercaderia === 'conforme'
+                      ? 'bg-green-100 text-green-800'
+                      : nota.estado_mercaderia === 'no_conforme'
+                      ? 'bg-red-100 text-red-800'
+                      : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {nota.estado_mercaderia === 'conforme' ? 'Conforme' :
+                     nota.estado_mercaderia === 'no_conforme' ? 'No Conforme' : 'Parcial'}
+                  </span>
                 </div>
-                <div className="flex items-center gap-2 sm:gap-3 justify-between sm:justify-end">
-                  <Badge variant={
-                    nota.estado_mercaderia === 'conforme' ? 'success' :
-                    nota.estado_mercaderia === 'no_conforme' ? 'danger' : 'warning'
-                  } className="text-xs">
-                    {nota.estado_mercaderia}
-                  </Badge>
-                  <button
-                    onClick={() => navigate(`/notas-entrega/${nota.id}`)}
-                    className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors text-xs sm:text-sm font-medium"
-                  >
-                    <Eye size={14} />
-                    Ver
-                  </button>
-                </div>
+                {nota.recibido_por && (
+                  <p className="text-xs text-gray-600"><span className="font-medium">Recibido por:</span> {nota.recibido_por}</p>
+                )}
+                {(nota.visitante_nombre || nota.visitante_dni) && (
+                  <div className="mt-2 pt-2 border-t border-gray-200">
+                    <div className="flex items-center gap-1 mb-1">
+                      <User size={12} className="text-purple-600" />
+                      <p className="text-xs font-medium text-purple-700">Visitante</p>
+                    </div>
+                    {nota.visitante_nombre && (
+                      <p className="text-xs text-gray-600">{nota.visitante_nombre}</p>
+                    )}
+                    {nota.visitante_dni && (
+                      <p className="text-xs text-gray-600">DNI: {nota.visitante_dni}</p>
+                    )}
+                    {nota.visitante_empresa && (
+                      <p className="text-xs text-gray-600">{nota.visitante_empresa}</p>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </Card>
       )}
-
-      {/* DEBUG - Documentos Identidad */}
-      {expediente.documentos_identidad && expediente.documentos_identidad.length > 0 && (
-        <div className="p-4 bg-green-100 border border-green-300 rounded text-xs mb-4">
-          <p className="font-bold mb-2">DEBUG - Primer doc identidad:</p>
-          <pre className="overflow-auto max-h-40">{JSON.stringify(expediente.documentos_identidad[0], null, 2)}</pre>
-        </div>
-      )}
-
-      
 
       {/* Observaciones */}
       {expediente.observaciones && (

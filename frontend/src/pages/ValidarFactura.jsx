@@ -17,6 +17,8 @@ export default function ValidarFactura() {
   const [saving, setSaving] = useState(false);
   const [showImage, setShowImage] = useState(false);
   const [formData, setFormData] = useState({});
+  const [mostrarModalRechazar, setMostrarModalRechazar] = useState(false);
+  const [motivoRechazo, setMotivoRechazo] = useState('');
 
   useEffect(() => {
     cargarFactura();
@@ -25,18 +27,13 @@ export default function ValidarFactura() {
   const cargarFactura = async () => {
     try {
         setLoading(true);
-        console.log('Cargando documento ID:', id);
-        
         const data = await facturaService.obtener(id);
-        console.log('Documento cargado:', data);
         setFactura(data);
 
         if (data.tipo_documento_id === 2) {
-          console.log('🔄 Redirigiendo a vista de guía de remisión...');
           navigate(`/validar-guia/${id}`, { replace: true });
           return;
         } else if (data.tipo_documento_id === 3) {
-          console.log('🔄 Redirigiendo a vista de orden de compra...');
           navigate(`/validar-orden/${id}`, { replace: true });
           return;
         }
@@ -65,7 +62,6 @@ export default function ValidarFactura() {
 
         try {
           const itemsData = await facturaService.obtenerItems(id);
-          console.log('Items cargados:', itemsData);
           setItems(itemsData || []);
         } catch (itemsError) {
           console.error('Error cargando items:', itemsError);
@@ -114,15 +110,14 @@ export default function ValidarFactura() {
   };
 
   const handleRechazar = async () => {
-    const motivo = prompt('¿Por qué rechazas este documento?');
-    if (!motivo || motivo.trim().length < 10) {
+    if (motivoRechazo.trim().length < 10) {
       toast.error('Debes proporcionar un motivo válido (mínimo 10 caracteres)');
       return;
     }
 
     try {
       setSaving(true);
-      await facturaService.rechazar(id, motivo);
+      await facturaService.rechazar(id, motivoRechazo);
       toast.success(MENSAJES.RECHAZAR_SUCCESS);
       navigate('/facturas');
     } catch (error) {
@@ -130,6 +125,8 @@ export default function ValidarFactura() {
       toast.error(error.response?.data?.detail || MENSAJES.RECHAZAR_ERROR);
     } finally {
       setSaving(false);
+      setMostrarModalRechazar(false);
+      setMotivoRechazo('');
     }
   };
 
@@ -677,7 +674,7 @@ export default function ValidarFactura() {
             <span className="sm:hidden">Cancelar</span>
           </Button>
 
-          <Button variant="danger" fullWidth onClick={handleRechazar} disabled={saving}>
+          <Button variant="danger" fullWidth onClick={() => setMostrarModalRechazar(true)} disabled={saving}>
             <X size={18} />
             Rechazar
           </Button>
@@ -696,11 +693,45 @@ export default function ValidarFactura() {
         </div>
       </Card>
 
+      {/* Modal Rechazar */}
+      {mostrarModalRechazar && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-4 sm:p-6 max-w-md w-full">
+            <h3 className="text-lg sm:text-xl font-bold mb-3">Rechazar Documento</h3>
+            <p className="text-sm text-gray-600 mb-3">Indica el motivo del rechazo:</p>
+            <textarea
+              value={motivoRechazo}
+              onChange={(e) => setMotivoRechazo(e.target.value)}
+              placeholder="Ej: Datos incorrectos, RUC no coincide..."
+              className="w-full border rounded-lg p-3 mb-2 min-h-28 text-sm"
+              maxLength={500}
+            />
+            <p className="text-xs text-gray-500 mb-4">{motivoRechazo.length}/500 caracteres (mínimo 10)</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setMostrarModalRechazar(false); setMotivoRechazo(''); }}
+                disabled={saving}
+                className="flex-1 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 disabled:opacity-50 text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleRechazar}
+                disabled={saving || motivoRechazo.trim().length < 10}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm"
+              >
+                {saving ? 'Rechazando...' : 'Confirmar Rechazo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de imagen */}
       <Modal isOpen={showImage} onClose={() => setShowImage(false)} title="Imagen del Documento" size="xl">
         <div className="max-h-[70vh] overflow-auto">
           <img 
-            src={`http://192.168.2.47:8000/${factura.archivo_original_url}`}
+            src={`${import.meta.env.VITE_API_BASE_URL}/${factura.archivo_original_url}`}
             alt="Documento"
             className="w-full"
           />

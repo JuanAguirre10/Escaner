@@ -96,9 +96,6 @@ async def procesar_documento_identidad(
         db.commit()
         db.refresh(doc_identidad)
         
-        print(f"✅ Doc identidad guardado: {filename}")
-        print(f"   Ruta: {ruta_archivo}")
-        
         return doc_identidad
         
     except Exception as e:

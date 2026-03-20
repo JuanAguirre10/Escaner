@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 # ==================================
 # CREAR ENGINE DE SQLALCHEMY
 # ==================================
-print(settings.DATABASE_URL)
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,  # Verifica conexión antes de usar

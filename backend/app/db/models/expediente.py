@@ -3,7 +3,7 @@ Modelo para Expedientes
 Agrupa documentos relacionados: OC + Factura + Guía + Nota
 """
 
-from sqlalchemy import Column, Integer, String, Date, TIMESTAMP, ForeignKey, Text, Boolean
+from sqlalchemy import Column, Integer, String, Date, TIMESTAMP, ForeignKey, Text, Boolean, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.base import Base
@@ -32,7 +32,10 @@ class Expediente(Base):
     
     # Información adicional
     observaciones = Column(Text)
-    
+
+    # Documentos exentos (tipos que no se requieren para completitud)
+    documentos_exentos = Column(JSON, default=list, nullable=True)
+
     # Cerrado manual (NUEVO)
     cerrado_manualmente = Column(Boolean, default=False)
     cerrado_por = Column(String(100), nullable=True)

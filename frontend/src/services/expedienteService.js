@@ -154,5 +154,15 @@ export const expedienteService = {
     return response.data;
   },
 
-  
+  /**
+   * Marca/desmarca un tipo de documento como no requerido para el expediente
+   */
+  async exentarDocumento(expedienteId, tipoDocumentoId, exentar) {
+    const response = await api.post(`/expedientes/${expedienteId}/exentar`, {
+      tipo_documento_id: tipoDocumentoId,
+      exentar: exentar
+    });
+    return response.data;
+  },
+
 };

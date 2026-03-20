@@ -13,6 +13,7 @@ export default function ListaDocumentos() {
   const [documentos, setDocumentos] = useState([]);
   const [notas, setNotas] = useState([]);
   const [docsIdentidad, setDocsIdentidad] = useState([]);
+  const [confirmacion, setConfirmacion] = useState({ visible: false, mensaje: '', onConfirm: null });
   const [tiposDocumento, setTiposDocumento] = useState([]);
   const [tipoSeleccionado, setTipoSeleccionado] = useState(TIPOS_DOCUMENTO.ORDEN_COMPRA);
   const [loading, setLoading] = useState(true);
@@ -106,40 +107,61 @@ export default function ListaDocumentos() {
     setFiltroEstado('');
   };
 
-  const handleEliminar = async (id) => {
-    if (!confirm('¿Estás seguro de eliminar este documento?')) return;
-    try {
-      await documentoService.eliminar(id);
-      toast.success('Documento eliminado');
-      cargarDocumentos();
-    } catch (error) {
-      console.error('Error eliminando:', error);
-      toast.error('Error al eliminar documento');
-    }
+  const handleEliminar = (id) => {
+    setConfirmacion({
+      visible: true,
+      mensaje: '¿Estás seguro de eliminar este documento?',
+      onConfirm: async () => {
+        try {
+          await documentoService.eliminar(id);
+          toast.success('Documento eliminado');
+          cargarDocumentos();
+        } catch (error) {
+          console.error('Error eliminando:', error);
+          toast.error('Error al eliminar documento');
+        } finally {
+          setConfirmacion({ visible: false, mensaje: '', onConfirm: null });
+        }
+      }
+    });
   };
 
-  const handleEliminarNota = async (id) => {
-    if (!confirm('¿Estás seguro de eliminar esta nota?')) return;
-    try {
-      await notaEntregaService.eliminar(id);
-      toast.success('Nota eliminada');
-      cargarDocumentos();
-    } catch (error) {
-      console.error('Error eliminando:', error);
-      toast.error('Error al eliminar nota');
-    }
+  const handleEliminarNota = (id) => {
+    setConfirmacion({
+      visible: true,
+      mensaje: '¿Estás seguro de eliminar esta nota?',
+      onConfirm: async () => {
+        try {
+          await notaEntregaService.eliminar(id);
+          toast.success('Nota eliminada');
+          cargarDocumentos();
+        } catch (error) {
+          console.error('Error eliminando:', error);
+          toast.error('Error al eliminar nota');
+        } finally {
+          setConfirmacion({ visible: false, mensaje: '', onConfirm: null });
+        }
+      }
+    });
   };
 
-  const handleEliminarIdentidad = async (id) => {
-    if (!confirm('¿Estás seguro de eliminar este documento de identidad?')) return;
-    try {
-      await documentoIdentidadService.eliminar(id);
-      toast.success('Documento de identidad eliminado');
-      cargarDocumentos();
-    } catch (error) {
-      console.error('Error eliminando:', error);
-      toast.error('Error al eliminar documento de identidad');
-    }
+  const handleEliminarIdentidad = (id) => {
+    setConfirmacion({
+      visible: true,
+      mensaje: '¿Estás seguro de eliminar este documento de identidad?',
+      onConfirm: async () => {
+        try {
+          await documentoIdentidadService.eliminar(id);
+          toast.success('Documento de identidad eliminado');
+          cargarDocumentos();
+        } catch (error) {
+          console.error('Error eliminando:', error);
+          toast.error('Error al eliminar documento de identidad');
+        } finally {
+          setConfirmacion({ visible: false, mensaje: '', onConfirm: null });
+        }
+      }
+    });
   };
 
   const tipoActual = tiposDocumento.find(t => t.id === tipoSeleccionado);
@@ -922,6 +944,30 @@ export default function ListaDocumentos() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* Modal Confirmación Eliminar */}
+      {confirmacion.visible && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-4 sm:p-6 max-w-sm w-full">
+            <h3 className="text-lg font-bold mb-2">Confirmar eliminación</h3>
+            <p className="text-sm text-gray-600 mb-6">{confirmacion.mensaje}</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmacion({ visible: false, mensaje: '', onConfirm: null })}
+                className="flex-1 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmacion.onConfirm}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

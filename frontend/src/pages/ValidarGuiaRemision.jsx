@@ -15,6 +15,8 @@ export default function ValidarGuiaRemision() {
   const [documento, setDocumento] = useState(null);
   const [guia, setGuia] = useState(null);
   const [items, setItems] = useState([]);
+  const [mostrarModalRechazar, setMostrarModalRechazar] = useState(false);
+  const [motivoRechazo, setMotivoRechazo] = useState('');
 
   useEffect(() => {
     cargarDatos();
@@ -78,7 +80,7 @@ export default function ValidarGuiaRemision() {
       });
 
       toast.success('Guía de remisión actualizada correctamente');
-      navigate('/documentos');
+      navigate('/facturas');
     } catch (error) {
       console.error('Error guardando:', error);
       toast.error('Error al guardar los cambios');
@@ -103,15 +105,14 @@ export default function ValidarGuiaRemision() {
   };
 
   const handleRechazar = async () => {
-    const motivo = prompt('¿Por qué rechazas esta guía de remisión?');
-    if (!motivo || motivo.trim().length < 10) {
+    if (motivoRechazo.trim().length < 10) {
       toast.error('Debes proporcionar un motivo válido (mínimo 10 caracteres)');
       return;
     }
 
     try {
       setSaving(true);
-      await documentoService.rechazar(id, motivo);
+      await documentoService.rechazar(id, motivoRechazo);
       toast.success('Guía de remisión rechazada');
       navigate('/facturas');
     } catch (error) {
@@ -119,6 +120,8 @@ export default function ValidarGuiaRemision() {
       toast.error('Error al rechazar la guía de remisión');
     } finally {
       setSaving(false);
+      setMostrarModalRechazar(false);
+      setMotivoRechazo('');
     }
   };
 
@@ -132,7 +135,7 @@ export default function ValidarGuiaRemision() {
         <Card>
           <div className="text-center py-12">
             <p className="text-sm sm:text-base text-gray-600">No se encontró información de guía de remisión</p>
-            <Button onClick={() => navigate('/documentos')} className="mt-4">
+            <Button onClick={() => navigate('/facturas')} className="mt-4">
               Volver
             </Button>
           </div>
@@ -147,7 +150,7 @@ export default function ValidarGuiaRemision() {
       <div className="pt-4 sm:pt-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3 sm:gap-4">
           <button
-            onClick={() => navigate('/documentos')}
+            onClick={() => navigate('/facturas')}
             className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-lg transition-colors shrink-0"
           >
             <ArrowLeft size={20} />
@@ -666,7 +669,7 @@ export default function ValidarGuiaRemision() {
           <Button
             variant="danger"
             fullWidth
-            onClick={handleRechazar}
+            onClick={() => setMostrarModalRechazar(true)}
             disabled={saving}
           >
             <X size={18} />
@@ -696,6 +699,42 @@ export default function ValidarGuiaRemision() {
           </Button>
         </div>
       </Card>
+
+      {/* Modal Rechazar */}
+      {mostrarModalRechazar && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-4 sm:p-6 max-w-md w-full">
+            <h3 className="text-lg sm:text-xl font-bold mb-3">Rechazar Guía de Remisión</h3>
+            <p className="text-sm text-gray-600 mb-3">
+              Indica el motivo del rechazo:
+            </p>
+            <textarea
+              value={motivoRechazo}
+              onChange={(e) => setMotivoRechazo(e.target.value)}
+              placeholder="Ej: Datos incorrectos, falta información del transportista..."
+              className="w-full border rounded-lg p-3 mb-2 min-h-28 text-sm"
+              maxLength={500}
+            />
+            <p className="text-xs text-gray-500 mb-4">{motivoRechazo.length}/500 caracteres (mínimo 10)</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setMostrarModalRechazar(false); setMotivoRechazo(''); }}
+                disabled={saving}
+                className="flex-1 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 disabled:opacity-50 text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleRechazar}
+                disabled={saving || motivoRechazo.trim().length < 10}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm"
+              >
+                {saving ? 'Rechazando...' : 'Confirmar Rechazo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

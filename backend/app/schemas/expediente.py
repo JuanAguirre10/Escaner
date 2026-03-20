@@ -19,6 +19,7 @@ class ExpedienteBase(BaseModel):
     cerrado_manualmente: Optional[bool] = False
     cerrado_por: Optional[str] = None
     motivo_cierre: Optional[str] = None
+    documentos_exentos: Optional[List[int]] = Field(default_factory=list)
 
 
 class ExpedienteCreate(ExpedienteBase):
@@ -32,6 +33,7 @@ class ExpedienteUpdate(BaseModel):
     cerrado_manualmente: Optional[bool] = None
     cerrado_por: Optional[str] = None
     motivo_cierre: Optional[str] = None
+    documentos_exentos: Optional[List[int]] = None
 
 
 class DocumentoExpediente(BaseModel):
@@ -54,7 +56,10 @@ class NotaEntregaExpediente(BaseModel):
     fecha_recepcion: date
     recibido_por: Optional[str] = None
     estado_mercaderia: str
-    
+    visitante_nombre: Optional[str] = None
+    visitante_dni: Optional[str] = None
+    visitante_empresa: Optional[str] = None
+
     class Config:
         from_attributes = True
 
